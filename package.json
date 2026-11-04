@@ -1,0 +1,11 @@
+{
+  "name": "menu-settimanale",
+  "version": "1.0.0",
+  "description": "Menù settimanale, lista della spesa e meal prep per una persona",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.mjs"
+  }
+}

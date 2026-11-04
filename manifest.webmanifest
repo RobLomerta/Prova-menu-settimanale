@@ -1,0 +1,11 @@
+{
+  "name": "Menù settimanale",
+  "short_name": "Menù",
+  "description": "Menù settimanale, lista della spesa e meal prep per una persona",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f6f5f0",
+  "theme_color": "#3f7d4e",
+  "lang": "it",
+  "icons": [{ "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}
