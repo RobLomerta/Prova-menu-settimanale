@@ -2,7 +2,7 @@
 // e calcolatore di equivalenze tra alimenti.
 import { INGREDIENTS } from '../data/ingredients.js';
 import { nutrientsOf, nutrientsOfItem, energySplit, equivalent } from '../engine/nutrition.js';
-import { slotIngredients, shownId, fitPlan, extraEntries, setExtraDay } from '../engine/planner.js';
+import { slotIngredients, shownId, fitPlan, extraEntries, setExtraDay, dayHasEdits } from '../engine/planner.js';
 import { weekView, countedNutrients } from '../engine/week.js';
 import { slotMeal, DAYS, DAYS_SHORT } from '../engine/common.js';
 import { $, esc, r0, ingredientOptions, deltaHtml, shortName, macroLine } from './util.js';
@@ -104,7 +104,16 @@ function summaryHtml(app) {
     const cur = lab.extra ? d.meals.find((m) => m.extra && m.key === lab.extra.key) : d.meals.find((m) => m.slot === lab.slot);
     const newTotal = d.total.kcal - cur.n.kcal + countedNutrients(lab.draft, ctx).kcal;
     const dt = ctx.nutritionTarget?.kcal;
-    day = `<p class="small">Totale del giorno: <strong>${r0(d.total.kcal)} → ${r0(newTotal)} kcal</strong>${dt ? ` <span class="muted">(obiettivo ${r0(dt)}${ctx.plan ? ', verdure libere escluse come nel piano' : ''})</span>` : ''}</p>`;
+    const edits = dayHasEdits(plan, ctx, lab.day);
+    const reb = !!plan.rebalance?.[lab.day];
+    const off = dt && Math.abs(d.total.kcal - dt) / dt > 0.02;
+    const rebalanceHtml = !dt || ctx.settings.fitPortions === false ? '' : reb
+      ? `<p class="small ok-note">⚖️ Giorno riequilibrato: i carboidrati degli altri pasti sono stati adattati per restare vicino a ${r0(dt)} kcal. <button class="link-btn" data-action="lab-rebalance" data-on="0">Annulla</button></p>`
+      : edits && off
+        ? `<p class="small muted">Le tue modifiche sono rispettate così come sono: il giorno è a ${r0(d.total.kcal)} kcal.</p>
+           <button class="btn small" data-action="lab-rebalance" data-on="1">⚖️ Riequilibra il giorno (adatta i carboidrati degli altri pasti)</button>`
+        : '';
+    day = `<p class="small">Totale del giorno: <strong>${r0(d.total.kcal)} → ${r0(newTotal)} kcal</strong>${dt ? ` <span class="muted">(obiettivo ${r0(dt)}${ctx.plan ? ', verdure libere escluse come nel piano' : ''})</span>` : ''}</p>${rebalanceHtml}`;
   }
   const row = (k, l) => `<tr><th>${l}</th><td>${r0(a[k])}</td><td><strong>${r0(b[k])}</strong></td><td>${deltaHtml(a[k], b[k])}</td></tr>`;
   const sp = energySplit(b);
@@ -282,7 +291,7 @@ export const labActions = (app) => ({
       openExtra(app, lab.extra.key, lab.extra.day);
       app.save();
       app.rerender();
-      return app.toast(same ? 'Combinazione originale' : 'Modifiche applicate: spesa e riepilogo aggiornati');
+      return app.toast(same ? 'Combinazione originale' : 'Pasto aggiornato: menù, spesa, meal prep e nutrienti');
     }
     const sl = plan.slots[lab.slot];
     const items = lab.draft.filter((x) => x.q > 0).map((x) => ({ id: x.id, q: x.q }));
@@ -295,7 +304,23 @@ export const labActions = (app) => ({
     lab.draft = clone(slotIngredients(sl, lab.slot, ctx));
     app.save();
     app.rerender();
-    app.toast(same ? 'Ricetta originale' : 'Modifiche applicate: spesa e riepilogo aggiornati');
+    app.toast(same ? 'Ricetta originale' : 'Pasto aggiornato: menù, spesa, meal prep e nutrienti');
+  },
+  'lab-rebalance': (el) => {
+    const { lab, plan, ctx } = app.state;
+    plan.rebalance ??= {};
+    if (el.dataset.on === '1') plan.rebalance[lab.day] = true;
+    else delete plan.rebalance[lab.day];
+    fitPlan(plan, ctx);
+    if (lab.extra) openExtra(app, lab.extra.key, lab.extra.day);
+    else if (lab.slot != null) {
+      const draft = lab.draft;
+      openLab(app, lab.slot);
+      app.state.lab.draft = draft;
+    }
+    app.save();
+    app.rerender();
+    app.toast(el.dataset.on === '1' ? 'Giorno riequilibrato sull’obiettivo calorico' : 'Riequilibrio annullato');
   },
   'lab-reset': () => {
     const { lab, plan, ctx } = app.state;

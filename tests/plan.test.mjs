@@ -132,3 +132,50 @@ test('colazione dolce, salata o alternata (con e senza piano)', async () => {
     }
   }
 });
+
+test('una modifica manuale non viene compensata in automatico (salvo "riequilibra")', async () => {
+  const { setExtraDay, dayHasEdits } = await import('../js/engine/planner.js');
+  const dp = { ...parsePlanText(text), freq: FREQ };
+  const ctx = buildContext({ month: 11 }, dp);
+  const plan = generatePlan(ctx, { seed: 21 });
+  const before = weekView(plan, ctx).days[0];
+  const lunchBefore = before.meals.find((m) => m.slot === 0);
+  const dinnerBefore = before.meals.find((m) => m.slot === 1);
+  // raddoppio la colazione del lunedì
+  const bf = extraEntries(plan, ctx).find((e) => e.key === 'colazione' && e.day === 0);
+  setExtraDay(plan, 'colazione', 0, { custom: bf.ing.map((x) => ({ ...x, q: x.q * 2 })) });
+  fitPlan(plan, ctx);
+  assert.ok(dayHasEdits(plan, ctx, 0));
+  const after = weekView(plan, ctx).days[0];
+  assert.ok(after.total.kcal > before.total.kcal + 50, `${before.total.kcal} → ${after.total.kcal}`);
+  // pranzo e cena non cambiano di nascosto
+  assert.equal(Math.round(after.meals.find((m) => m.slot === 0).n.kcal), Math.round(lunchBefore.n.kcal));
+  assert.equal(Math.round(after.meals.find((m) => m.slot === 1).n.kcal), Math.round(dinnerBefore.n.kcal));
+  // riequilibrio su richiesta
+  plan.rebalance = { 0: true };
+  fitPlan(plan, ctx);
+  const reb = weekView(plan, ctx).days[0];
+  assert.ok(Math.abs(reb.total.kcal - 1500) < Math.abs(after.total.kcal - 1500), `riequilibrio ${reb.total.kcal}`);
+  // annullando il riequilibrio si torna esattamente a prima
+  delete plan.rebalance[0];
+  fitPlan(plan, ctx);
+  assert.equal(Math.round(weekView(plan, ctx).days[0].total.kcal), Math.round(after.total.kcal));
+  // tolta la modifica, il giorno torna ad adattarsi da solo
+  setExtraDay(plan, 'colazione', 0, { custom: null });
+  fitPlan(plan, ctx);
+  assert.equal(Math.round(weekView(plan, ctx).days[0].total.kcal), Math.round(before.total.kcal));
+});
+
+test('meal prep: tiene conto delle modifiche e di colazioni e spuntini', async () => {
+  const { setExtraDay } = await import('../js/engine/planner.js');
+  const ctx = buildContext({ month: 11 });
+  const plan = generatePlan(ctx, { seed: 4 });
+  const sumFarro = (mp) => mp.sessions.flatMap((x) => x.tasks).filter((t) => t.key === 'cereali').flatMap((t) => t.items).filter((i) => i.name === 'Farro perlato').map((i) => parseInt(i.qty, 10)).reduce((a, b) => a + b, 0);
+  const before = sumFarro(mealPrepPlan(plan, ctx));
+  plan.slots[0].custom = { r: plan.slots[0].r, ing: [{ id: 'farro', q: 100 }, { id: 'ceci', q: 60 }, { id: 'zucca', q: 200 }] };
+  assert.equal(sumFarro(mealPrepPlan(plan, ctx)), before + 100);
+  setExtraDay(plan, 'colazione', 1, { custom: [{ id: 'pane', q: 60 }, { id: 'ceci', q: 30 }, { id: 'tahina', q: 10 }] });
+  const mp = mealPrepPlan(plan, ctx);
+  const uses = mp.sessions.flatMap((x) => x.tasks).flatMap((t) => t.items).flatMap((i) => i.uses);
+  assert.ok(uses.includes('Mar colazione'), 'i ceci della colazione entrano nel meal prep');
+});

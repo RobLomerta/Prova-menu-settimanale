@@ -397,3 +397,6 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-
 .lab-current { margin: 12px 0 6px; }
 .lab-picker select { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); margin-top: 6px; }
 @media (max-width: 520px) { .seg-btn { padding: 8px 2px; font-size: 0.85rem; } }
+
+.link-btn { border: 0; background: none; color: var(--accent); text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
+.ok-note { background: var(--ok-soft); border-radius: 8px; padding: 6px 10px; }

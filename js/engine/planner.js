@@ -66,18 +66,40 @@ export function slotIngredients(sl, s, ctx, { useAlt = true } = {}) {
   });
 }
 
+/** True se nel giorno c'è almeno un pasto modificato a mano (pranzo, cena, colazione o spuntini). */
+export function dayHasEdits(plan, ctx, day) {
+  const slots = [day * 2, day * 2 + 1].some((s) => {
+    const sl = plan.slots[s];
+    return sl.custom && sl.custom.r === shownId(sl);
+  });
+  const extras = Object.values(plan.extraDay || {}).some((days) => days[day]?.custom);
+  return slots || extras;
+}
+
 /**
  * Adatta le porzioni di carboidrati di pranzo e cena perché ogni giorno si avvicini
- * all'obiettivo calorico (entro ±40%). Non tocca i pasti modificati a mano.
+ * all'obiettivo calorico (entro ±40%). I giorni con modifiche manuali restano come li hai
+ * impostati, a meno che tu non chieda di riequilibrarli (plan.rebalance[day]).
  */
 export function fitPlan(plan, ctx) {
   const target = ctx.nutritionTarget?.kcal;
+  // nei giorni modificati a mano gli altri pasti restano esattamente come li vedevi
+  plan.frozen ??= {};
+  for (let day = 0; day < 7; day++) {
+    const ss = [day * 2, day * 2 + 1];
+    if (dayHasEdits(plan, ctx, day)) plan.frozen[day] ??= ss.map((s) => plan.slots[s].fit ?? 1);
+    else delete plan.frozen[day];
+  }
   for (const sl of plan.slots) sl.fit = 1;
   if (!target || ctx.settings.fitPortions === false) return plan;
   const extras = extraEntries(plan, ctx);
   for (let day = 0; day < 7; day++) {
     const ss = [day * 2, day * 2 + 1];
     if (ss.some((s) => plan.slots[s].r === 'libero' || shownId(plan.slots[s]) === 'libero')) continue;
+    if (plan.frozen[day] && !plan.rebalance?.[day]) {
+      ss.forEach((s, i) => (plan.slots[s].fit = plan.frozen[day][i]));
+      continue;
+    }
     // con un piano alimentare le verdure sono "libere": non contano per l'obiettivo, come nel piano
     const counted = (items) => (ctx.plan ? items.filter((x) => INGREDIENTS[x.id].ro !== 'veg') : items);
     let total = extras.filter((e) => e.day === day).reduce((a, e) => a + nutrientsOf(counted(e.ing)).kcal, 0);

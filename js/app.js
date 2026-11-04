@@ -578,7 +578,8 @@ function renderPrep() {
           <div class="task">
             <h4>🍲 Piatti da cucinare per intero</h4>
             <ul>${ses.dishes.map((d) => `
-              <li><strong>${esc(d.name)}</strong>${d.portions > 1 ? ' (2 porzioni)' : ''}
+              <li><strong>${esc(d.name)}</strong>${d.portions > 1 ? ' (2 porzioni)' : ''}${d.custom ? ' <span class="pill edit">✏️ modificato</span>' : ''}
+                ${d.items ? `<div class="small">${esc(d.items)}</div>` : ''}
                 <div class="small muted">per: ${esc(d.use)} · in frigo ${d.keep} giorni${d.fz ? ' · oppure congela' : ''}</div>
               </li>`).join('')}</ul>
           </div>` : ''}

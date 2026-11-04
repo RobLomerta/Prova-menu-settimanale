@@ -1,8 +1,8 @@
 import { INGREDIENTS } from '../data/ingredients.js';
 import { PREP_TASKS } from '../data/prep.js';
-import { DAYS, slotDay, slotMeal, slotLabel, isWorkLunch } from './common.js';
+import { DAYS, DAYS_SHORT, slotDay, slotMeal, slotLabel, isWorkLunch } from './common.js';
 import { fmtQty } from './shopping.js';
-import { slotIngredients, shownId } from './planner.js';
+import { slotIngredients, shownId, extraEntries } from './planner.js';
 
 const SESSIONS = [
   { key: 'dom', title: 'Domenica', subtitle: 'Sessione principale · circa 1 h 30', start: -1 },
@@ -61,9 +61,30 @@ export function mealPrepPlan(plan, ctx) {
     const worthIt = isWorkLunch(s) || (slotMeal(s) === 'C' && day < 5 && r.t >= 30);
     if (r.ahead && worthIt) {
       const ses = sessionFor(day, r.keep || 2);
-      if (ses) dishes[ses].push({ name: r.n, use, portions: double, keep: r.keep, fz: r.fz });
+      const main = items
+        .filter((x) => ['carb', 'prot', 'veg'].includes(INGREDIENTS[x.id].ro))
+        .map((x) => `${INGREDIENTS[x.id].n.replace(/ \(.*\)$/, '').toLowerCase()} ${fmtQty(x.q * double, INGREDIENTS[x.id].u)}`);
+      const custom = !!(sl.custom && sl.custom.r === r.id);
+      if (ses) dishes[ses].push({ name: r.n, use, portions: double, keep: r.keep, fz: r.fz, items: main.join(', '), custom });
     }
   });
+
+  // colazioni e spuntini: legumi, cereali e verdure da preparare in anticipo
+  for (const e of extraEntries(plan, ctx)) {
+    const use = `${DAYS_SHORT[e.day]} ${e.label.toLowerCase()}`;
+    for (const { id, q } of e.ing) {
+      const key = INGREDIENTS[id].prep;
+      if (!key) continue;
+      const def = PREP_TASKS[key];
+      const ses = sessionFor(e.day, def.keepBy?.[id] ?? def.keep);
+      if (ses) add(ses, key, id, q, use);
+    }
+    if (e.ing.some((x) => x.id === 'ceci') && e.ing.some((x) => x.id === 'tahina')) {
+      const ceci = e.ing.find((x) => x.id === 'ceci');
+      const ses = sessionFor(e.day, PREP_TASKS.hummus.keep);
+      if (ses) add(ses, 'hummus', 'ceci', ceci.q, use);
+    }
+  }
 
   const sessions = SESSIONS.map((ses) => {
     const t = tasks[ses.key] || {};
