@@ -353,10 +353,105 @@ export function extraEntries(plan, ctx) {
         const list = pool.length ? pool : ex.combos;
         c = list[seen[st]++ % list.length];
       } else c = ex.combos[day % ex.combos.length];
-      out.push({ key: ex.key, label: ex.label, name: c.n, ing: c.ing, r: { n: c.n, ing: c.ing, pantry: c.pantry || [] }, day, meal: 'B' });
+      // scelte del singolo giorno: combinazione cambiata, bloccata o modificata a mano
+      const ov = plan.extraDay?.[ex.key]?.[day] || {};
+      const combo = ov.combo || c;
+      const ing = ov.custom || combo.ing;
+      out.push({
+        key: ex.key, label: ex.label, name: combo.n, ing, orig: combo.ing, style: combo.style || null,
+        locked: !!ov.locked, custom: !!ov.custom, swappable: ex.swappable !== false,
+        r: { n: combo.n, ing, pantry: combo.pantry || [] }, day, meal: 'B',
+      });
     }
   }
   return out;
+}
+
+/** Imposta (o cancella con null) le scelte di un giorno per colazione/spuntino. */
+export function setExtraDay(plan, key, day, patch) {
+  plan.extraDay ??= {};
+  plan.extraDay[key] ??= {};
+  if (patch === null) delete plan.extraDay[key][day];
+  else {
+    const next = { ...(plan.extraDay[key][day] || {}), ...patch };
+    for (const k of Object.keys(next)) if (next[k] == null || next[k] === false) delete next[k];
+    if (Object.keys(next).length) plan.extraDay[key][day] = next;
+    else delete plan.extraDay[key][day];
+  }
+  return plan;
+}
+
+/** Mantiene solo le scelte bloccate (dopo una rigenerazione di colazioni e spuntini). */
+export function keepLockedExtras(plan, previous) {
+  const out = {};
+  for (const [key, days] of Object.entries(previous?.extraDay || {})) {
+    for (const [day, ov] of Object.entries(days)) {
+      if (ov.locked) (out[key] ??= {})[day] = ov;
+    }
+  }
+  plan.extraDay = out;
+  return plan;
+}
+
+const comboSig = (c) => c.ing.map((x) => `${x.id}:${x.q}`).sort().join();
+
+/** Un'altra proposta per la colazione o lo spuntino di un giorno. */
+export function alternativeExtra(plan, ctx, key, day, tried = new Set(), rand = Math.random) {
+  const current = extraEntries(plan, ctx).find((e) => e.key === key && e.day === day);
+  const style = key === 'colazione' ? breakfastStyle(plan, ctx, day) : null;
+  const skip = new Set([...tried, current ? comboSig({ ing: current.orig }) : '']);
+  const cands = [];
+  if (ctx.plan) {
+    const meal = ctx.plan.meals.find((m) => m.key === key);
+    if (!meal) return null;
+    const lines = meal.lines.map(parseLine).filter((l) => l.role !== 'veg');
+    const kind = key === 'colazione' ? `colazione-${style}` : 'snack';
+    for (let t = 0; t < 60 && cands.length < 6; t++) {
+      const c = planCombo(lines, ctx, rand, kind);
+      if (c && validCombo(c, kind, t) && !skip.has(comboSig(c)) && !cands.some((x) => comboSig(x) === comboSig(c))) cands.push(c);
+    }
+  } else if (key === 'colazione') {
+    for (const b of Object.values(ctx.breakfasts)) {
+      if ((b.style || 'dolce') !== style) continue;
+      const c = { n: b.n, ing: b.ing.map((x) => ({ ...x })), pantry: b.pantry, style };
+      if (!skip.has(comboSig(c))) cands.push(c);
+    }
+  } else {
+    const fruits = FRUIT_IDS.filter((f) => f !== 'frutta_mista' && resolveIngredient(f, ctx.excluded, ctx.vegan) && inSeason(INGREDIENTS[f], ctx.month));
+    for (const f of fruits) {
+      const c = { n: `${INGREDIENTS[f].n} (2 porzioni)`, ing: [{ id: f, q: 300 }] };
+      if (!skip.has(comboSig(c))) cands.push(c);
+    }
+  }
+  if (!cands.length) return null;
+  return cands[Math.floor(rand() * cands.length)];
+}
+
+/** Breve preparazione di una colazione o di uno spuntino, ricavata dagli ingredienti. */
+export function extraHowTo(ing) {
+  const ids = ing.map((x) => x.id);
+  const has = (...xs) => xs.some((x) => ids.includes(x));
+  const steps = [];
+  const milk = has('latte', 'latte_sl', 'bevanda_soia');
+  if (has('avena', 'avena_gf')) {
+    if (has('yogurt', 'yogurt_sl', 'yogurt_soia')) steps.push('Mescola i fiocchi d’avena allo yogurt: preparato la sera prima in un barattolo diventa cremoso (overnight oats).');
+    else if (milk) steps.push('Cuoci i fiocchi d’avena nel latte 3-4 minuti mescolando, fino a ottenere un porridge.');
+    else steps.push('Cuoci i fiocchi d’avena in acqua 3-4 minuti mescolando.');
+  } else if (milk) steps.push('Latte o bevanda vegetale freddi o caldi, a piacere.');
+  if (has('proteine_polvere')) steps.push(has('avena', 'avena_gf') ? 'Fuori dal fuoco incorpora le proteine in polvere.' : 'Sciogli le proteine in polvere in acqua fredda (shaker).');
+  if (has('uova')) steps.push('Strapazza le uova in una padella antiaderente con un pizzico di sale, 2-3 minuti a fuoco medio.');
+  if (has('albumi')) steps.push('Versa gli albumi in padella antiaderente calda e cuoci come un’omelette, 3-4 minuti, girandola a metà.');
+  if (has('tofu')) steps.push('Sbriciola il tofu in padella con curcuma e un pizzico di sale, 4-5 minuti.');
+  if (has('pane', 'pane_gf')) steps.push('Tosta il pane (se lo tieni congelato a fette, va direttamente nel tostapane).');
+  if (has('fette_biscottate', 'gallette')) steps.push('Fette biscottate o gallette pronte all’uso.');
+  if (has('bresaola', 'fesa_affettata', 'prosciutto_cotto')) steps.push('Aggiungi l’affettato al momento.');
+  if (has('ricotta', 'ricotta_sl')) steps.push('Spalma la ricotta sul pane.');
+  if (has('ceci') && has('tahina')) steps.push('Hummus: frulla i ceci cotti con tahina e limone (si prepara nel meal prep e dura 4 giorni).');
+  if (has('marmellata', 'miele', 'sciroppo_acero')) steps.push('Completa con marmellata o miele.');
+  if (has('tonno', 'sgombro')) steps.push('Sgocciola il tonno e condiscilo con limone o pepe.');
+  if (has('olive_verdi')) steps.push('Olive pronte: comode da portare in un barattolino.');
+  if (ids.some((id) => INGREDIENTS[id].ro === 'frutta')) steps.push('Frutta fresca, intera o a pezzi.');
+  return steps.join(' ');
 }
 
 /** Mantengo il vecchio nome per compatibilità. */
@@ -467,6 +562,14 @@ function planCombo(lines, ctx, rand, kind) {
   return { n: n[0].toUpperCase() + n.slice(1), ing };
 }
 
+function validCombo(c, kind, attempt = 0) {
+  // una colazione salata deve avere davvero una proteina salata
+  if (kind === 'colazione-salata' && !c.ing.some((x) => SAVORY_FOODS.includes(x.id))) return false;
+  // le proteine in polvere stanno bene nel porridge d'avena, non sul pane
+  if (c.ing.some((x) => x.id === 'proteine_polvere') && !c.ing.some((x) => ['avena', 'avena_gf'].includes(x.id)) && attempt < 25) return false;
+  return true;
+}
+
 function extrasFromPlan(ctx, rand) {
   const out = [];
   for (const meal of ctx.plan.meals) {
@@ -480,10 +583,7 @@ function extrasFromPlan(ctx, rand) {
       for (let t = 0; t < 30 && made < k; t++) {
         const c = planCombo(lines, ctx, rand, kind);
         if (!c) break;
-        // una colazione salata deve avere davvero una proteina salata
-        if (kind === 'colazione-salata' && !c.ing.some((x) => SAVORY_FOODS.includes(x.id))) continue;
-        // le proteine in polvere stanno bene nel porridge d'avena, non sul pane
-        if (c.ing.some((x) => x.id === 'proteine_polvere') && !c.ing.some((x) => ['avena', 'avena_gf'].includes(x.id)) && t < 25) continue;
+        if (!validCombo(c, kind, t)) continue;
         const sig = c.ing.map((x) => x.id).sort().join();
         if (sigs.has(sig) && t < 25) continue;
         sigs.add(sig);

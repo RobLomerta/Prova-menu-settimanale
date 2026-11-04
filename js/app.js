@@ -1,6 +1,6 @@
 import { INGREDIENTS } from './data/ingredients.js';
 import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS } from './engine/diet.js';
-import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, breakfastStyle } from './engine/planner.js';
+import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, breakfastStyle, setExtraDay, keepLockedExtras, alternativeExtra, extraHowTo } from './engine/planner.js';
 import { shoppingList, shoppingText, fmtQty } from './engine/shopping.js';
 import { mealPrepPlan } from './engine/mealprep.js';
 import { weekView } from './engine/week.js';
@@ -78,7 +78,13 @@ function regenerate({ keepLocked = true } = {}) {
   state.ctx = buildContext(state.settings, state.dietPlan);
   const fixed = keepLocked && state.plan ? state.plan.slots.map((s) => (s.locked ? s : null)) : [];
   try {
+    const previous = state.plan;
     state.plan = generatePlan(state.ctx, { seed: Math.floor(Math.random() * 2 ** 31), fixed });
+    if (keepLocked && previous) {
+      keepLockedExtras(state.plan, previous);
+      state.plan.bfStyle = previous.bfStyle || null;
+      fitPlan(state.plan, state.ctx);
+    }
     if (keepLocked && fixed.length) {
       state.plan.slots.forEach((sl, i) => {
         if (fixed[i]?.useAlt && sl.alt) sl.useAlt = true;
@@ -194,12 +200,41 @@ const actions = {
     const pref = state.settings.breakfastStyle || 'dolce';
     const def = pref === 'alternata' ? (day % 2 ? 'salata' : 'dolce') : pref;
     state.plan.bfStyle[day] = next === def ? null : next;
+    setExtraDay(state.plan, 'colazione', day, null); // la proposta precedente era dell'altro stile
     fitPlan(state.plan, state.ctx);
     save();
     render();
   },
+  'x-swap': (el) => {
+    const { key } = el.dataset;
+    const day = Number(el.dataset.day);
+    const tk = `${key}|${day}`;
+    const tried = (state.tried[tk] ??= new Set());
+    let c = alternativeExtra(state.plan, state.ctx, key, day, tried);
+    if (!c) {
+      tried.clear();
+      c = alternativeExtra(state.plan, state.ctx, key, day, tried);
+    }
+    if (!c) return toast('Nessuna alternativa disponibile');
+    tried.add(c.ing.map((x) => `${x.id}:${x.q}`).sort().join());
+    setExtraDay(state.plan, key, day, { combo: c, custom: null });
+    fitPlan(state.plan, state.ctx);
+    save();
+    render();
+  },
+  'x-lock': (el) => {
+    const { key } = el.dataset;
+    const day = Number(el.dataset.day);
+    const cur = weekView(state.plan, state.ctx).days[day].meals.find((m) => m.extra && m.key === key);
+    if (cur.locked) setExtraDay(state.plan, key, day, { locked: null });
+    else setExtraDay(state.plan, key, day, { locked: true, combo: { n: cur.name, ing: cur.orig, style: cur.style } });
+    save();
+    render();
+  },
   'new-extras': () => {
+    const previous = { extraDay: state.plan.extraDay };
     state.plan.extras = buildExtras(state.plan, state.ctx, Math.random);
+    keepLockedExtras(state.plan, previous);
     fitPlan(state.plan, state.ctx);
     save();
     render();
@@ -398,6 +433,36 @@ function mealBlock(s, nut) {
     </div>`;
 }
 
+function extraBlock(m) {
+  const { plan, ctx } = state;
+  const bf = m.key === 'colazione' ? breakfastStyle(plan, ctx, m.day) : null;
+  const work = m.key !== 'colazione' && m.day < 5;
+  const r = { n: m.name, s: extraHowTo(m.ing), pantry: [], notes: [], t: 5 };
+  const args = `data-key="${m.key}" data-day="${m.day}"`;
+  return `
+    <div class="meal extra-meal ${m.locked ? 'locked' : ''}">
+      <div class="meal-head">
+        <span class="meal-label">${esc(m.label)}</span>
+        ${bf ? `<button class="pill-btn" data-action="bf-toggle" data-day="${m.day}" title="Passa a colazione ${bf === 'dolce' ? 'salata' : 'dolce'}" ${m.locked ? 'disabled' : ''}>${bf === 'dolce' ? '🍯 dolce' : '🧀 salata'} ⇄</button>` : ''}
+        ${work ? '<span class="pill work" title="Da portare al lavoro">🎒 da portare</span>' : ''}
+        ${m.custom ? '<span class="pill edit">✏️ modificato</span>' : ''}
+        <span class="meal-tools">
+          <button class="icon-btn" data-action="x-edit" ${args} title="Modifica ingredienti e vedi i valori nutrizionali">✏️</button>
+          <button class="icon-btn" data-action="x-swap" ${args} title="Proponi un’altra combinazione" ${m.locked ? 'disabled' : ''}>🔄</button>
+          <button class="icon-btn" data-action="x-lock" ${args} title="${m.locked ? 'Sblocca' : 'Blocca: resta anche rigenerando'}">${m.locked ? '🔒' : '🔓'}</button>
+        </span>
+      </div>
+      <h4>${esc(m.name)}</h4>
+      <p class="macro small">${macroLine(m.n)}</p>
+      <details class="recipe">
+        <summary>Ingredienti e preparazione</summary>
+        <ul class="ing-list">${ingList(m.ing)}</ul>
+        ${r.s ? `<p>${esc(r.s)}</p>` : ''}
+        ${work ? '<p class="tip">🎒 Porta lo spuntino in un contenitorino; yogurt, affettati e albumi in borsa termica.</p>' : ''}
+      </details>
+    </div>`;
+}
+
 function renderMenu() {
   const { plan, ctx } = state;
   const el = $('#tab-menu');
@@ -408,12 +473,7 @@ function renderMenu() {
   const allAlt = hasFish && plan.slots.filter((s) => s.alt).every((s) => s.useAlt);
   const days = w.days.map((d) => {
     const parts = d.meals.map((m) => {
-      if (m.extra) {
-        const bf = m.key === 'colazione' ? breakfastStyle(plan, ctx, d.day) : null;
-        const toggle = bf ? `<button class="pill-btn" data-action="bf-toggle" data-day="${d.day}" title="Passa a colazione ${bf === 'dolce' ? 'salata' : 'dolce'}">${bf === 'dolce' ? '🍯 dolce' : '🧀 salata'} ⇄</button>` : '';
-        return `<div class="extra"><span class="extra-label">${esc(m.label)}</span> ${toggle} <span>${esc(m.name)}</span>
-          <span class="muted small">· ${esc(m.ing.map((x) => `${INGREDIENTS[x.id].u === 'pz' ? x.q : fmtQty(x.q, INGREDIENTS[x.id].u)} ${INGREDIENTS[x.id].n.replace(/ \(.*\)$/, '').toLowerCase()}`).join(', '))} · ${r0(m.n.kcal)} kcal</span></div>`;
-      }
+      if (m.extra) return extraBlock(m);
       return mealBlock(m.slot, m.n);
     }).join('');
     const pct = target?.kcal ? Math.min(100, (d.total.kcal / target.kcal) * 100) : null;
@@ -430,7 +490,7 @@ function renderMenu() {
   el.innerHTML = `
     ${ctx.plan ? `<p class="plan-note small">📄 Menù costruito sul tuo piano alimentare: porzioni ricalcolate sulle grammature del piano${target ? `, obiettivo ${r0(target.kcal)} kcal al giorno` : ''}.</p>` : ''}
     <div class="toolbar">
-      <p class="muted small">✏️ modifica ingredienti · 🔄 cambia piatto · 🔒 blocca · ♻️ usa l’avanzo della cena</p>
+      <p class="muted small">✏️ modifica ingredienti · 🔄 cambia piatto · 🔒 blocca · ♻️ usa l’avanzo della cena · 🍯/🧀 colazione dolce o salata</p>
       <div class="toolbar-btns">
         ${hasFish ? `<button class="btn small" data-action="all-alt" data-on="${allAlt ? '0' : '1'}">${allAlt ? '🐟 Rimetti il pesce' : '🥦 Tutto senza pesce'}</button>` : ''}
         ${plan.extras?.some((x) => x.key === 'colazione' || ctx.plan) ? '<button class="btn small" data-action="new-extras">☕ Cambia colazioni e spuntini</button>' : ''}
@@ -465,7 +525,8 @@ function renderShopping() {
   if (!plan) return (el.innerHTML = '');
   const list = shoppingList(plan, ctx);
   const nAlt = plan.slots.filter((s) => s.useAlt).length;
-  const nCustom = plan.slots.filter((s) => s.custom && s.custom.r === shownId(s)).length;
+  const nCustom = plan.slots.filter((s) => s.custom && s.custom.r === shownId(s)).length
+    + Object.values(plan.extraDay || {}).reduce((n, days) => n + Object.values(days).filter((o) => o.custom).length, 0);
   el.innerHTML = `
     <div class="toolbar">
       <p class="muted small">${nAlt ? `Include ${nAlt} alternativ${nAlt > 1 ? 'e' : 'a'} senza pesce. ` : ''}${nCustom ? `Include ${nCustom} pas${nCustom > 1 ? 'ti modificati' : 'to modificato'}. ` : ''}Spunta ciò che hai già o che metti nel carrello.</p>

@@ -220,7 +220,9 @@ export function renderPiano(app) {
           <span class="small">${m.est.kcal ? `~${r0(m.est.kcal)} kcal` : ''}</span>
           <button class="icon-btn" data-action="plan-del-meal" data-meal="${mi}" title="Rimuovi questo pasto">🗑️</button>
         </div>
-        ${['pranzo', 'cena'].includes(m.key) ? `<p class="small muted">Porzioni usate per le ricette: ${esc(portionsSummary(m))}</p>` : ''}
+        ${['pranzo', 'cena'].includes(m.key)
+          ? `<p class="small muted">Porzioni usate per le ricette: ${esc(portionsSummary(m))}</p>`
+          : `<p class="small muted">Nel menù ogni giorno sceglie un’opzione per riga${m.key === 'colazione' ? ' (versione dolce o salata)' : ''}; puoi cambiarla, bloccarla o modificarla nel Laboratorio.</p>`}
         <ol class="plan-lines">
           ${m.lines.map((line, li) => `
             <li>

@@ -379,3 +379,21 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-
   border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
 }
 .pill-btn:hover { border-color: var(--accent); }
+.pill-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* selettore giorno / pasto del laboratorio */
+.lab-picker h3 { margin-bottom: 4px; }
+.seg-label { margin: 10px 0 4px; font-weight: 600; }
+.seg { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; background: var(--surface-2); padding: 4px; border-radius: 12px; }
+.seg.wrap { display: flex; flex-wrap: wrap; }
+.seg-btn {
+  border: 0; background: transparent; padding: 8px 10px; border-radius: 9px; cursor: pointer;
+  font-weight: 600; color: var(--muted); white-space: nowrap; min-width: 0;
+}
+.seg.wrap .seg-btn { flex: 1 1 auto; }
+.seg-btn.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); outline: 2px solid var(--accent); outline-offset: -2px; }
+.seg-btn:hover:not(.on) { color: var(--text); }
+.seg-note { align-self: center; padding: 0 8px; }
+.lab-current { margin: 12px 0 6px; }
+.lab-picker select { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); margin-top: 6px; }
+@media (max-width: 520px) { .seg-btn { padding: 8px 2px; font-size: 0.85rem; } }

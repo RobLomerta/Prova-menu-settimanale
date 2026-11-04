@@ -26,7 +26,10 @@ export function weekView(plan, ctx) {
     if (free) days[day].free = true;
   });
   for (const e of extraEntries(plan, ctx)) {
-    days[e.day].meals.push({ key: e.key, label: e.label, name: e.name, ing: e.ing, n: countedNutrients(e.ing, ctx), extra: true });
+    days[e.day].meals.push({
+      key: e.key, label: e.label, name: e.name, ing: e.ing, orig: e.orig, style: e.style, locked: e.locked,
+      custom: e.custom, day: e.day, n: countedNutrients(e.ing, ctx), extra: true,
+    });
   }
   for (const d of days) {
     d.meals.sort((a, b) => (ORDER[a.key] ?? 9) - (ORDER[b.key] ?? 9));
