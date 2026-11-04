@@ -495,9 +495,17 @@ export const FREE_MEAL = {
 
 // Colazioni: se ne scelgono due e si alternano (meno ingredienti, meno sprechi)
 export const BREAKFASTS = [
+  // dolci
   { id: 'b_yogurt', n: 'Yogurt greco con fiocchi d’avena, frutta e noci', i: { yogurt: 170, avena: 30, noci: 10 } },
   { id: 'b_porridge', n: 'Porridge d’avena con latte, cannella e frutta', i: { avena: 40, latte: 200 }, d: ['cannella'] },
   { id: 'b_pane_ricotta', n: 'Pane integrale tostato con ricotta e miele', i: { pane: 60, ricotta: 60 }, d: ['miele'] },
   { id: 'b_pane_tahina', n: 'Pane tostato con tahina, miele e frutta', i: { pane: 60, tahina: 15 }, d: ['miele'] },
-  { id: 'b_uova_pane', n: 'Uovo strapazzato con pane integrale e frutta', i: { uova: 1, pane: 50 } },
+  // salate
+  { id: 'b_uova_pane', style: 'salata', n: 'Uova strapazzate con pane integrale tostato', i: { uova: 2, pane: 50 } },
+  { id: 'b_toast_cotto', style: 'salata', n: 'Toast integrale con prosciutto cotto e un frutto', i: { pane: 60, prosciutto_cotto: 50, mela: 150 } },
+  { id: 'b_pane_bresaola', style: 'salata', n: 'Pane integrale con bresaola e un filo d’olio', i: { pane: 60, bresaola: 40 }, d: ['olio'] },
+  { id: 'b_omelette_albumi', style: 'salata', n: 'Omelette di albumi con gallette integrali', i: { albumi: 150, gallette: 30, parmigiano: 5 } },
+  { id: 'b_ricotta_salata', style: 'salata', n: 'Pane integrale con ricotta, olio e origano', i: { pane: 60, ricotta: 80 }, d: ['olio', 'origano'] },
+  { id: 'b_hummus_toast', style: 'salata', n: 'Pane tostato con hummus e carote', i: { pane: 60, ceci: 30, tahina: 10, carote: 60 } },
+  { id: 'b_tofu_toast', style: 'salata', n: 'Tofu strapazzato alla curcuma su pane tostato', i: { tofu: 100, pane: 50 }, d: ['curcuma'] },
 ];

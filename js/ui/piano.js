@@ -250,6 +250,7 @@ export function renderPiano(app) {
         ${Object.entries(FREQ_LABELS).map(([k, l]) => `
           <label class="field"><span>${l}</span><input type="number" min="0" max="14" data-freq="${k}" value="${plan.freq?.[k] ?? 0}"></label>`).join('')}
       </div>
+      <p class="small muted">Le frequenze valgono per pranzi e cene: gli affettati magri della colazione salata non vengono conteggiati.</p>
       <p class="small ${freqTotal === 14 ? 'muted' : 'warn'}">Totale: ${freqTotal} pasti su 14${freqTotal === 14 ? ' ✓' : ' – idealmente dovrebbero essere 14 (7 pranzi + 7 cene).'}</p>
       <div class="targets-grid">
         <label class="field"><span>Pasto libero</span><select data-pf="freeSlot">${slotOptions.map(([v, l]) => `<option value="${v}" ${Number(plan.freeSlot ?? 11) === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>

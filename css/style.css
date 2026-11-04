@@ -373,3 +373,9 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-
   .col-val { font-size: 0.6rem; }
   .split-row { grid-template-columns: 80px 1fr; }
 }
+
+.pill-btn {
+  font-size: 0.72rem; padding: 1px 8px; border-radius: 999px; cursor: pointer; vertical-align: 1px;
+  border: 1px solid var(--border); background: var(--surface-2); color: var(--text);
+}
+.pill-btn:hover { border-color: var(--accent); }

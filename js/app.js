@@ -1,6 +1,6 @@
 import { INGREDIENTS } from './data/ingredients.js';
 import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS } from './engine/diet.js';
-import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients } from './engine/planner.js';
+import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, breakfastStyle } from './engine/planner.js';
 import { shoppingList, shoppingText, fmtQty } from './engine/shopping.js';
 import { mealPrepPlan } from './engine/mealprep.js';
 import { weekView } from './engine/week.js';
@@ -186,6 +186,18 @@ const actions = {
       /* condivisione annullata */
     }
   },
+  'bf-toggle': (el) => {
+    const day = Number(el.dataset.day);
+    const cur = breakfastStyle(state.plan, state.ctx, day);
+    state.plan.bfStyle ??= Array(7).fill(null);
+    const next = cur === 'dolce' ? 'salata' : 'dolce';
+    const pref = state.settings.breakfastStyle || 'dolce';
+    const def = pref === 'alternata' ? (day % 2 ? 'salata' : 'dolce') : pref;
+    state.plan.bfStyle[day] = next === def ? null : next;
+    fitPlan(state.plan, state.ctx);
+    save();
+    render();
+  },
   'new-extras': () => {
     state.plan.extras = buildExtras(state.plan, state.ctx, Math.random);
     fitPlan(state.plan, state.ctx);
@@ -230,6 +242,10 @@ function renderSettings() {
     <label class="field">
       <span>Porzioni ${planOn || s.kcalTarget ? '<em class="muted">(calcolate dall’obiettivo)</em>' : ''}</span>
       <select name="portion" ${planOn || s.kcalTarget ? 'disabled' : ''}>${opt('leggera', 'Leggere', s.portion)}${opt('normale', 'Normali', s.portion)}${opt('abbondante', 'Abbondanti', s.portion)}</select>
+    </label>
+    <label class="field">
+      <span>Colazione</span>
+      <select name="breakfastStyle">${opt('dolce', 'Dolce', s.breakfastStyle)}${opt('salata', 'Salata', s.breakfastStyle)}${opt('alternata', 'Alternata (un giorno dolce, uno salata)', s.breakfastStyle)}</select>
     </label>
     <label class="field">
       <span>Mese (per la stagionalità)</span>
@@ -284,6 +300,7 @@ function readSettings(form) {
     exclude: Object.keys(EXCLUSIONS).filter((k) => fd.has(`ex_${k}`)),
     twoShops: fd.get('twoShops') === '1',
     breakfast: form.breakfast.disabled ? state.settings.breakfast : fd.has('breakfast'),
+    breakfastStyle: fd.get('breakfastStyle') || 'dolce',
     fitPortions: fd.has('fitPortions'),
     kcalTarget: kcal >= 800 ? kcal : null,
     usePlan: form.usePlan ? fd.has('usePlan') : state.settings.usePlan,
@@ -392,7 +409,9 @@ function renderMenu() {
   const days = w.days.map((d) => {
     const parts = d.meals.map((m) => {
       if (m.extra) {
-        return `<div class="extra"><span class="extra-label">${esc(m.label)}</span> <span>${esc(m.name)}</span>
+        const bf = m.key === 'colazione' ? breakfastStyle(plan, ctx, d.day) : null;
+        const toggle = bf ? `<button class="pill-btn" data-action="bf-toggle" data-day="${d.day}" title="Passa a colazione ${bf === 'dolce' ? 'salata' : 'dolce'}">${bf === 'dolce' ? '🍯 dolce' : '🧀 salata'} ⇄</button>` : '';
+        return `<div class="extra"><span class="extra-label">${esc(m.label)}</span> ${toggle} <span>${esc(m.name)}</span>
           <span class="muted small">· ${esc(m.ing.map((x) => `${INGREDIENTS[x.id].u === 'pz' ? x.q : fmtQty(x.q, INGREDIENTS[x.id].u)} ${INGREDIENTS[x.id].n.replace(/ \(.*\)$/, '').toLowerCase()}`).join(', '))} · ${r0(m.n.kcal)} kcal</span></div>`;
       }
       return mealBlock(m.slot, m.n);

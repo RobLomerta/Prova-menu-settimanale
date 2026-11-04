@@ -334,12 +334,25 @@ export function assignAlternatives(plan, ctx, rand = rng(plan.seed || 1), previo
 // plan.extras = [{ key, label, combos: [{ n, ing }] }]  — il giorno d usa combos[d % combos.length]
 
 /** Voci dei pasti extra per ogni giorno (colazione, spuntini). */
+/** Stile della colazione di un giorno: scelta del giorno, altrimenti la preferenza generale. */
+export function breakfastStyle(plan, ctx, day) {
+  const pref = ctx.settings.breakfastStyle || 'dolce';
+  return plan.bfStyle?.[day] || (pref === 'alternata' ? (day % 2 ? 'salata' : 'dolce') : pref);
+}
+
 export function extraEntries(plan, ctx) {
   const out = [];
   for (const ex of plan.extras || []) {
     if (!ex.combos?.length) continue;
+    const seen = { dolce: 0, salata: 0 };
     for (let day = 0; day < 7; day++) {
-      const c = ex.combos[day % ex.combos.length];
+      let c;
+      if (ex.key === 'colazione' && ex.combos.some((x) => x.style)) {
+        const st = breakfastStyle(plan, ctx, day);
+        const pool = ex.combos.filter((x) => x.style === st);
+        const list = pool.length ? pool : ex.combos;
+        c = list[seen[st]++ % list.length];
+      } else c = ex.combos[day % ex.combos.length];
       out.push({ key: ex.key, label: ex.label, name: c.n, ing: c.ing, r: { n: c.n, ing: c.ing, pantry: c.pantry || [] }, day, meal: 'B' });
     }
   }
@@ -349,12 +362,55 @@ export function extraEntries(plan, ctx) {
 /** Mantengo il vecchio nome per compatibilità. */
 export const breakfastEntries = extraEntries;
 
-const BREAKFAST_CARBS = ['avena', 'avena_gf', 'fette_biscottate', 'gallette', 'pane', 'pane_gf'];
+const BREAKFAST_CARBS = {
+  dolce: ['avena', 'avena_gf', 'fette_biscottate', 'pane', 'pane_gf'],
+  salata: ['pane', 'pane_gf', 'gallette'],
+};
+// Alimenti da colazione dolce / salata (la frutta va bene per entrambe, "a parte")
+const SWEET_FOODS = ['marmellata', 'miele', 'proteine_polvere', 'yogurt', 'yogurt_sl', 'yogurt_soia', 'latte', 'latte_sl', 'bevanda_soia', 'avena', 'avena_gf', 'fette_biscottate'];
+const SAVORY_FOODS = ['uova', 'albumi', 'bresaola', 'fesa_affettata', 'prosciutto_cotto', 'tofu'];
 
 function concreteChoices(food, ctx, kind) {
   const all = rawChoices(food, ctx, kind);
-  if (kind === 'colazione' && INGREDIENTS[food]?.ro === 'carb' && !BREAKFAST_CARBS.includes(food)) return [];
-  return all;
+  if (!kind.startsWith('colazione')) return all;
+  const style = kind.split('-')[1] || 'dolce';
+  const ok = all.filter((id) => {
+    if (INGREDIENTS[id].ro === 'carb') return BREAKFAST_CARBS[style].includes(id);
+    if (style === 'dolce') return !SAVORY_FOODS.includes(id);
+    return !SWEET_FOODS.includes(id);
+  });
+  // nel salato il pane è più frequente delle gallette
+  if (style === 'salata' && ok.includes('pane') && ok.includes('gallette')) ok.push('pane', 'pane');
+  return ok;
+}
+
+const low = (id) => INGREDIENTS[id].n.replace(/ \(.*\)$/, '').toLowerCase();
+
+/** Nome leggibile di una colazione costruita dalle righe del piano. */
+function breakfastName(ing, style) {
+  const ids = ing.map((x) => x.id);
+  const carb = ids.find((id) => INGREDIENTS[id].ro === 'carb');
+  const fruit = ids.find((id) => INGREDIENTS[id].ro === 'frutta');
+  const has = (...xs) => xs.find((x) => ids.includes(x));
+  let n;
+  if (style === 'salata') {
+    const aff = has('bresaola', 'fesa_affettata', 'prosciutto_cotto');
+    if (has('uova')) n = `Uova strapazzate con ${carb ? low(carb) : 'pane'}`;
+    else if (has('albumi')) n = `Omelette di albumi con ${carb ? low(carb) : 'pane'}`;
+    else if (aff) n = `${carb ? low(carb) : 'Pane'} con ${low(aff)}`;
+    else if (has('tofu')) n = `Tofu strapazzato con ${carb ? low(carb) : 'pane'}`;
+    else n = ids.map(low).join(' + ');
+    if (fruit) n += ` · ${low(fruit)} a parte`;
+  } else {
+    const sweet = has('marmellata', 'miele');
+    const milk = has('latte', 'latte_sl', 'bevanda_soia');
+    if (has('yogurt', 'yogurt_sl', 'yogurt_soia') && carb) n = `${low(has('yogurt', 'yogurt_sl', 'yogurt_soia'))} con ${low(carb)}`;
+    else if (carb && ['avena', 'avena_gf'].includes(carb) && (milk || has('proteine_polvere', 'albumi'))) n = `Porridge d’avena ${has('proteine_polvere') ? 'proteico' : milk ? `con ${low(milk)}` : 'con albume'}`;
+    else n = ids.filter((id) => id !== fruit && id !== sweet).map(low).join(' + ');
+    const extra = [fruit && low(fruit), sweet && low(sweet)].filter(Boolean);
+    if (extra.length) n += ` e ${extra.join(' e ')}`;
+  }
+  return n.charAt(0).toUpperCase() + n.slice(1);
 }
 
 function rawChoices(food, ctx, kind) {
@@ -403,6 +459,10 @@ function planCombo(lines, ctx, rand, kind) {
     names.push(INGREDIENTS[id].n.replace(/ \(.*\)$/, '').toLowerCase());
   }
   if (!ing.length) return null;
+  if (kind.startsWith('colazione')) {
+    const style = kind.split('-')[1];
+    return { n: breakfastName(ing, style), ing, style };
+  }
   const n = names.join(' + ');
   return { n: n[0].toUpperCase() + n.slice(1), ing };
 }
@@ -412,16 +472,24 @@ function extrasFromPlan(ctx, rand) {
   for (const meal of ctx.plan.meals) {
     if (meal.key === 'pranzo' || meal.key === 'cena') continue;
     const lines = meal.lines.map(parseLine).filter((l) => l.role !== 'veg');
-    const k = meal.key === 'colazione' ? 2 : 3;
+    const kinds = meal.key === 'colazione' ? [['colazione-dolce', 2], ['colazione-salata', 2]] : [['snack', 3]];
     const combos = [];
-    const sigs = new Set();
-    for (let t = 0; t < 30 && combos.length < k; t++) {
-      const c = planCombo(lines, ctx, rand, meal.key === 'colazione' ? 'colazione' : 'snack');
-      if (!c) break;
-      const sig = c.ing.map((x) => x.id).sort().join();
-      if (sigs.has(sig) && t < 25) continue;
-      sigs.add(sig);
-      combos.push(c);
+    for (const [kind, k] of kinds) {
+      const sigs = new Set();
+      let made = 0;
+      for (let t = 0; t < 30 && made < k; t++) {
+        const c = planCombo(lines, ctx, rand, kind);
+        if (!c) break;
+        // una colazione salata deve avere davvero una proteina salata
+        if (kind === 'colazione-salata' && !c.ing.some((x) => SAVORY_FOODS.includes(x.id))) continue;
+        // le proteine in polvere stanno bene nel porridge d'avena, non sul pane
+        if (c.ing.some((x) => x.id === 'proteine_polvere') && !c.ing.some((x) => ['avena', 'avena_gf'].includes(x.id)) && t < 25) continue;
+        const sig = c.ing.map((x) => x.id).sort().join();
+        if (sigs.has(sig) && t < 25) continue;
+        sigs.add(sig);
+        combos.push(c);
+        made++;
+      }
     }
     if (combos.length) out.push({ key: meal.key, label: meal.label || MEAL_KEYS[meal.key], combos });
   }
@@ -431,11 +499,13 @@ function extrasFromPlan(ctx, rand) {
 function extrasDefault(plan, ctx, rand) {
   const out = [];
   if (ctx.settings.breakfast) {
-    const ids = chooseBreakfasts(plan, ctx, rand);
-    const combos = ids.map((id) => {
-      const b = ctx.breakfasts[id];
-      return { n: b.n, ing: b.ing.map((x) => ({ ...x })), pantry: b.pantry };
-    });
+    const combos = [];
+    for (const style of ['dolce', 'salata']) {
+      for (const id of chooseBreakfasts(plan, ctx, rand, style)) {
+        const b = ctx.breakfasts[id];
+        combos.push({ n: b.n, ing: b.ing.map((x) => ({ ...x })), pantry: b.pantry, style });
+      }
+    }
     if (combos.length) out.push({ key: 'colazione', label: 'Colazione', combos });
   }
   out.push({ key: 'spuntino2', label: 'Frutta (spuntini)', combos: [{ n: '2 porzioni di frutta di stagione', ing: [{ id: 'frutta_mista', q: 300 }] }] });
@@ -460,8 +530,8 @@ export function buildExtras(plan, ctx, rand = Math.random) {
   return best || [];
 }
 
-export function chooseBreakfasts(plan, ctx, rand = Math.random) {
-  const ids = Object.keys(ctx.breakfasts);
+export function chooseBreakfasts(plan, ctx, rand = Math.random, style = null) {
+  const ids = Object.keys(ctx.breakfasts).filter((id) => !style || (ctx.breakfasts[id].style || 'dolce') === style);
   if (!ids.length) return [];
   if (ids.length === 1) return [ids[0]];
   const base = slotEntries(plan.slots, ctx, { useAlt: true });

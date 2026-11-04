@@ -68,6 +68,7 @@ export const DEFAULT_SETTINGS = {
   usePlan: true, // usa il piano alimentare caricato (se presente)
   twoShops: true,
   breakfast: true,
+  breakfastStyle: 'dolce', // dolce | salata | alternata
   leftovers: 2,
   month: new Date().getMonth() + 1,
 };

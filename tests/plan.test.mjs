@@ -108,3 +108,27 @@ test('equivalenze tra alimenti', () => {
   const lent = equivalent('pollo', 100, 'lenticchie', 'p');
   assert.ok(lent > 95 && lent < 110);
 });
+
+test('colazione dolce, salata o alternata (con e senza piano)', async () => {
+  const { breakfastStyle } = await import('../js/engine/planner.js');
+  const SAVORY = ['uova', 'albumi', 'bresaola', 'fesa_affettata', 'prosciutto_cotto', 'tofu', 'ricotta', 'ceci'];
+  const SWEET = ['marmellata', 'miele', 'proteine_polvere'];
+  for (const dp of [{ ...parsePlanText(text), freq: FREQ }, null]) {
+    for (const style of ['dolce', 'salata', 'alternata']) {
+      const ctx = buildContext({ month: 11, breakfastStyle: style }, dp);
+      const plan = generatePlan(ctx, { seed: 2, iterations: 800, restarts: 1 });
+      for (const e of extraEntries(plan, ctx).filter((x) => x.key === 'colazione')) {
+        const st = breakfastStyle(plan, ctx, e.day);
+        assert.equal(st, style === 'alternata' ? (e.day % 2 ? 'salata' : 'dolce') : style);
+        const ids = e.ing.map((x) => x.id);
+        if (st === 'salata') {
+          assert.ok(ids.some((id) => SAVORY.includes(id)), `${e.name} non è salata`);
+          assert.ok(!ids.some((id) => SWEET.includes(id)), `${e.name} contiene dolci`);
+        } else assert.ok(!ids.some((id) => ['uova', 'albumi', 'bresaola', 'fesa_affettata', 'prosciutto_cotto'].includes(id)), `${e.name} non è dolce`);
+      }
+      // scelta del singolo giorno
+      plan.bfStyle = ['salata', null, null, null, null, null, null];
+      if (style === 'dolce') assert.equal(breakfastStyle(plan, ctx, 0), 'salata');
+    }
+  }
+});
