@@ -1,4 +1,8 @@
-import { INGREDIENTS, isPerishable } from '../data/ingredients.js';
+import { INGREDIENTS, isPerishable, inSeason } from '../data/ingredients.js';
+import { FRUIT_IDS } from '../data/nutrition.js';
+import { resolveIngredient } from './diet.js';
+import { parseLine, qtyFor, MEAL_KEYS } from './plan.js';
+import { nutrientsOf, nutrientsOfItem } from './nutrition.js';
 import { SLOTS, slotDay, slotMeal, isWorkLunch, rng, shopFor } from './common.js';
 
 // ---------------------------------------------------------------------------
@@ -10,7 +14,7 @@ export function collectNeeds(entries, ctx) {
   const needs = new Map();
   const issues = [];
   for (const e of entries) {
-    for (const { id, q } of e.r.ing) {
+    for (const { id, q } of e.ing ?? e.r.ing) {
       const ing = INGREDIENTS[id];
       const { shop, since } = shopFor(ing, e.day, e.meal, ctx.settings.twoShops);
       if (since > (ing.sh ?? 365)) issues.push({ id, day: e.day, meal: e.meal, r: e.r });
@@ -45,9 +49,58 @@ export function wasteScore(needs) {
 // Valutazione di un piano (più basso = migliore)
 // ---------------------------------------------------------------------------
 
+/** Ricetta mostrata in uno slot (tiene conto dell'alternativa senza pesce). */
+export const shownId = (sl) => (sl.useAlt && sl.alt ? sl.alt : sl.r);
+
+/** Ingredienti effettivi di uno slot: modifiche manuali, oppure ricetta porzionata per pranzo/cena. */
+export function slotIngredients(sl, s, ctx, { useAlt = true } = {}) {
+  const id = useAlt ? shownId(sl) : sl.r;
+  if (sl.custom && sl.custom.r === id) return sl.custom.ing;
+  const r = ctx.recipes[id];
+  const base = r.ingBy?.[slotMeal(s)] || r.ing;
+  if (!sl.fit || sl.fit === 1) return base;
+  return base.map((x) => {
+    const ing = INGREDIENTS[x.id];
+    if (ing.ro !== 'carb') return x;
+    return { ...x, q: ing.u === 'pz' ? Math.max(0.5, Math.round(x.q * sl.fit * 2) / 2) : Math.round(x.q * sl.fit) };
+  });
+}
+
+/**
+ * Adatta le porzioni di carboidrati di pranzo e cena perché ogni giorno si avvicini
+ * all'obiettivo calorico (entro ±40%). Non tocca i pasti modificati a mano.
+ */
+export function fitPlan(plan, ctx) {
+  const target = ctx.nutritionTarget?.kcal;
+  for (const sl of plan.slots) sl.fit = 1;
+  if (!target || ctx.settings.fitPortions === false) return plan;
+  const extras = extraEntries(plan, ctx);
+  for (let day = 0; day < 7; day++) {
+    const ss = [day * 2, day * 2 + 1];
+    if (ss.some((s) => plan.slots[s].r === 'libero' || shownId(plan.slots[s]) === 'libero')) continue;
+    // con un piano alimentare le verdure sono "libere": non contano per l'obiettivo, come nel piano
+    const counted = (items) => (ctx.plan ? items.filter((x) => INGREDIENTS[x.id].ro !== 'veg') : items);
+    let total = extras.filter((e) => e.day === day).reduce((a, e) => a + nutrientsOf(counted(e.ing)).kcal, 0);
+    let carbK = 0;
+    for (const s of ss) {
+      const sl = plan.slots[s];
+      const items = slotIngredients(sl, s, ctx);
+      total += nutrientsOf(counted(items)).kcal;
+      if (!(sl.custom && sl.custom.r === shownId(sl))) {
+        carbK += items.filter((x) => INGREDIENTS[x.id].ro === 'carb').reduce((a, x) => a + nutrientsOfItem(x.id, x.q).kcal, 0);
+      }
+    }
+    if (carbK <= 0) continue;
+    const k = Math.min(1.4, Math.max(0.6, 1 + (target - total) / carbK));
+    for (const s of ss) plan.slots[s].fit = Math.round(k * 100) / 100;
+  }
+  return plan;
+}
+
 export function slotEntries(slots, ctx, { useAlt = false } = {}) {
   return slots.map((sl, s) => ({
-    r: ctx.recipes[useAlt && sl.useAlt && sl.alt ? sl.alt : sl.r],
+    r: ctx.recipes[useAlt ? shownId(sl) : sl.r],
+    ing: slotIngredients(sl, s, ctx, { useAlt }),
     day: slotDay(s),
     meal: slotMeal(s),
   }));
@@ -66,20 +119,20 @@ export function evaluate(slots, ctx) {
     const r = R[sl.r];
     const day = slotDay(s);
     const meal = slotMeal(s);
-    counts[r.p] = (counts[r.p] || 0) + 1;
+    counts[r.cat] = (counts[r.cat] || 0) + 1;
     if (sl.lo) pairs++;
     else {
       if (seen.has(r.id)) parts.varieta += 15;
       seen.add(r.id);
-      bases[r.b] = (bases[r.b] || 0) + 1;
+      if (r.b !== 'libero') bases[r.b] = (bases[r.b] || 0) + 1;
     }
     if (meal === 'C') {
       const lunch = R[slots[s - 1].r];
-      if (lunch.p === r.p) parts.varieta += 3;
-      if (lunch.b === r.b) parts.varieta += 2;
+      if (lunch.cat === r.cat && r.cat !== 'libero') parts.varieta += 3;
+      if (lunch.b === r.b && r.b !== 'libero') parts.varieta += 2;
       if (day < 5 && !r.ahead && r.t > 40) parts.praticita += 1.5;
     } else if (s > 0 && !sl.lo) {
-      if (R[slots[s - 1].r].p === r.p) parts.varieta += 1.5;
+      if (R[slots[s - 1].r].cat === r.cat) parts.varieta += 1.5;
     }
     if (isWorkLunch(s) && r.t > 25 && !r.ahead && !sl.lo) parts.praticita += 1;
     parts.stagione += r.outOfSeason.length * 3;
@@ -105,10 +158,11 @@ export function evaluate(slots, ctx) {
 
 export function candidatesFor(ctx) {
   return Array.from({ length: SLOTS }, (_, s) => {
+    if (s === ctx.freeSlot) return ['libero'];
     const meal = slotMeal(s);
     const work = isWorkLunch(s);
     return Object.values(ctx.recipes)
-      .filter((r) => r.m.includes(meal) && (!work || r.port))
+      .filter((r) => r.id !== 'libero' && r.m.includes(meal) && (!work || r.port))
       .map((r) => r.id);
   });
 }
@@ -185,7 +239,7 @@ export function generatePlan(ctx, { seed = Date.now(), fixed = [], iterations = 
     if (!c.length) throw new Error('Non ci sono abbastanza ricette compatibili con le scelte fatte. Prova a ridurre le esclusioni.');
   });
   const candSets = cand.map((c) => new Set(c));
-  const fx = Array.from({ length: SLOTS }, (_, s) => (fixed[s] && ctx.recipes[fixed[s].r] ? fixed[s] : null));
+  const fx = Array.from({ length: SLOTS }, (_, s) => (fixed[s] && candSets[s].has(fixed[s].r) ? fixed[s] : null));
   // un pranzo-avanzo bloccato ha senso solo se è bloccata anche la cena
   for (let s = 0; s < SLOTS; s++) if (fx[s]?.lo && !fx[s - 1]) fx[s] = { ...fx[s], lo: false };
 
@@ -220,12 +274,12 @@ export function generatePlan(ctx, { seed = Date.now(), fixed = [], iterations = 
 
   const plan = {
     seed,
-    slots: best.map((x) => ({ r: x.r, lo: !!x.lo, locked: !!x.locked, alt: null, useAlt: false })),
-    breakfast: [],
+    slots: best.map((x, s) => ({ r: x.r, lo: !!x.lo, locked: !!x.locked, alt: null, useAlt: false, custom: fx[s]?.custom || null })),
+    extras: [],
   };
   assignAlternatives(plan, ctx, rand);
-  plan.breakfast = ctx.settings.breakfast ? chooseBreakfasts(plan, ctx, rand) : [];
-  return plan;
+  plan.extras = buildExtras(plan, ctx, rand);
+  return fitPlan(plan, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -274,16 +328,136 @@ export function assignAlternatives(plan, ctx, rand = rng(plan.seed || 1), previo
 }
 
 // ---------------------------------------------------------------------------
-// Colazioni: due proposte alternate, scelte per minimizzare gli sprechi
+// Colazioni e spuntini
 // ---------------------------------------------------------------------------
+//
+// plan.extras = [{ key, label, combos: [{ n, ing }] }]  — il giorno d usa combos[d % combos.length]
 
-export function breakfastEntries(plan, ctx) {
-  if (!plan.breakfast?.length) return [];
-  return Array.from({ length: 7 }, (_, day) => ({
-    r: ctx.breakfasts[plan.breakfast[day % plan.breakfast.length]],
-    day,
-    meal: 'B',
-  })).filter((e) => e.r);
+/** Voci dei pasti extra per ogni giorno (colazione, spuntini). */
+export function extraEntries(plan, ctx) {
+  const out = [];
+  for (const ex of plan.extras || []) {
+    if (!ex.combos?.length) continue;
+    for (let day = 0; day < 7; day++) {
+      const c = ex.combos[day % ex.combos.length];
+      out.push({ key: ex.key, label: ex.label, name: c.n, ing: c.ing, r: { n: c.n, ing: c.ing, pantry: c.pantry || [] }, day, meal: 'B' });
+    }
+  }
+  return out;
+}
+
+/** Mantengo il vecchio nome per compatibilità. */
+export const breakfastEntries = extraEntries;
+
+const BREAKFAST_CARBS = ['avena', 'avena_gf', 'fette_biscottate', 'gallette', 'pane', 'pane_gf'];
+
+function concreteChoices(food, ctx, kind) {
+  const all = rawChoices(food, ctx, kind);
+  if (kind === 'colazione' && INGREDIENTS[food]?.ro === 'carb' && !BREAKFAST_CARBS.includes(food)) return [];
+  return all;
+}
+
+function rawChoices(food, ctx, kind) {
+  const ok = (id) => INGREDIENTS[id] && resolveIngredient(id, ctx.excluded, ctx.vegan);
+  const seasonal = (ids) => {
+    const r = ids.filter((id) => ok(id));
+    const s = r.filter((id) => inSeason(INGREDIENTS[id], ctx.month));
+    return s.length ? s : r;
+  };
+  if (food === 'FRUTTA') return seasonal(FRUIT_IDS.filter((f) => f !== 'frutta_mista'));
+  if (food === 'AFFETTATI') return seasonal(['bresaola', 'fesa_affettata', 'prosciutto_cotto']);
+  if (food === 'CARNE') return seasonal(kind === 'snack' ? ['fesa_affettata'] : ['pollo', 'tacchino']);
+  if (food === 'PESCE') return seasonal(kind === 'snack' ? ['tonno'] : ['tonno', 'salmone']);
+  if (kind === 'snack' && ['salmone', 'merluzzo', 'orata', 'pollo', 'tacchino', 'manzo'].includes(food)) return [];
+  if (food === 'LEGUMI') return seasonal(['ceci', 'lenticchie']);
+  if (food === 'VERDURE') return [];
+  const rid = ok(food);
+  if (!rid) return [];
+  if (INGREDIENTS[rid].f && !inSeason(INGREDIENTS[rid], ctx.month)) return [];
+  return [rid];
+}
+
+/** Una combinazione: un'opzione per ogni riga del pasto del piano. */
+function planCombo(lines, ctx, rand, kind) {
+  const ing = [];
+  const names = [];
+  for (const line of lines) {
+    const viable = line.options
+      .filter((o) => o.q != null)
+      .map((o) => ({ o, choices: o.foods.flatMap((f) => concreteChoices(f, ctx, kind)) }))
+      .filter((x) => x.choices.length);
+    if (!viable.length) continue;
+    // in uno spuntino marmellata o miele da soli sono l'ultima scelta
+    const weight = (x) => (kind === 'snack' && x.choices.every((id) => ['marmellata', 'miele'].includes(id)) ? 0.25 : 1);
+    const tot = viable.reduce((a, x) => a + weight(x), 0);
+    let r = rand() * tot;
+    let pick = viable[0];
+    for (const x of viable) {
+      r -= weight(x);
+      if (r <= 0) { pick = x; break; }
+    }
+    const id = pick.choices[Math.floor(rand() * pick.choices.length)];
+    const q = qtyFor(id, pick.o.q, pick.o.u);
+    const unit = INGREDIENTS[id].u;
+    ing.push({ id, q: unit === 'pz' ? Math.max(1, Math.round(q)) : Math.round(q) });
+    names.push(INGREDIENTS[id].n.replace(/ \(.*\)$/, '').toLowerCase());
+  }
+  if (!ing.length) return null;
+  const n = names.join(' + ');
+  return { n: n[0].toUpperCase() + n.slice(1), ing };
+}
+
+function extrasFromPlan(ctx, rand) {
+  const out = [];
+  for (const meal of ctx.plan.meals) {
+    if (meal.key === 'pranzo' || meal.key === 'cena') continue;
+    const lines = meal.lines.map(parseLine).filter((l) => l.role !== 'veg');
+    const k = meal.key === 'colazione' ? 2 : 3;
+    const combos = [];
+    const sigs = new Set();
+    for (let t = 0; t < 30 && combos.length < k; t++) {
+      const c = planCombo(lines, ctx, rand, meal.key === 'colazione' ? 'colazione' : 'snack');
+      if (!c) break;
+      const sig = c.ing.map((x) => x.id).sort().join();
+      if (sigs.has(sig) && t < 25) continue;
+      sigs.add(sig);
+      combos.push(c);
+    }
+    if (combos.length) out.push({ key: meal.key, label: meal.label || MEAL_KEYS[meal.key], combos });
+  }
+  return out;
+}
+
+function extrasDefault(plan, ctx, rand) {
+  const out = [];
+  if (ctx.settings.breakfast) {
+    const ids = chooseBreakfasts(plan, ctx, rand);
+    const combos = ids.map((id) => {
+      const b = ctx.breakfasts[id];
+      return { n: b.n, ing: b.ing.map((x) => ({ ...x })), pantry: b.pantry };
+    });
+    if (combos.length) out.push({ key: 'colazione', label: 'Colazione', combos });
+  }
+  out.push({ key: 'spuntino2', label: 'Frutta (spuntini)', combos: [{ n: '2 porzioni di frutta di stagione', ing: [{ id: 'frutta_mista', q: 300 }] }] });
+  return out;
+}
+
+/** Costruisce colazioni e spuntini, scegliendo le combinazioni che sprecano meno. */
+export function buildExtras(plan, ctx, rand = Math.random) {
+  if (!ctx.plan) return extrasDefault(plan, ctx, rand);
+  const base = slotEntries(plan.slots, ctx, { useAlt: true });
+  let best = null;
+  let bestScore = Infinity;
+  for (let t = 0; t < 25; t++) {
+    const extras = extrasFromPlan(ctx, rand);
+    const { needs, issues } = collectNeeds([...base, ...extraEntries({ extras }, ctx)], ctx);
+    const sc = wasteScore(needs).waste * 3 + issues.length * 2 + rand();
+    if (sc < bestScore) {
+      bestScore = sc;
+      best = extras;
+    }
+  }
+  return best || [];
 }
 
 export function chooseBreakfasts(plan, ctx, rand = Math.random) {
@@ -295,8 +469,8 @@ export function chooseBreakfasts(plan, ctx, rand = Math.random) {
   let bestScore = Infinity;
   for (let i = 0; i < ids.length; i++) {
     for (let j = i + 1; j < ids.length; j++) {
-      const trial = { ...plan, breakfast: [ids[i], ids[j]] };
-      const { needs, issues } = collectNeeds([...base, ...breakfastEntries(trial, ctx)], ctx);
+      const extras = [{ key: 'colazione', combos: [ids[i], ids[j]].map((id) => ({ n: id, ing: ctx.breakfasts[id].ing })) }];
+      const { needs, issues } = collectNeeds([...base, ...extraEntries({ extras }, ctx)], ctx);
       const sc = wasteScore(needs).waste * 3 + issues.length * 2 + rand() * 0.8;
       if (sc < bestScore) {
         bestScore = sc;
@@ -318,7 +492,7 @@ export function replaceSlot(plan, s, ctx, tried = new Set(), rand = Math.random)
   for (const id of cand) {
     if (id === plan.slots[s].r || tried.has(id)) continue;
     const slots = plan.slots.map((x) => ({ ...x }));
-    slots[s] = { ...slots[s], r: id, lo: false, useAlt: false };
+    slots[s] = { ...slots[s], r: id, lo: false, useAlt: false, custom: null };
     if (s % 2 === 1 && slots[s + 1]?.lo) slots[s + 1].lo = false;
     scored.push({ id, slots, score: evaluate(slots, ctx).total + rand() * 2 });
   }
@@ -327,8 +501,7 @@ export function replaceSlot(plan, s, ctx, tried = new Set(), rand = Math.random)
   const pick = scored[0];
   const next = { ...plan, slots: pick.slots };
   assignAlternatives(next, ctx, rng(Date.now() & 0xffff), plan.slots);
-  if (ctx.settings.breakfast) next.breakfast = plan.breakfast?.length ? plan.breakfast : chooseBreakfasts(next, ctx);
-  return { plan: next, id: pick.id };
+  return { plan: fitPlan(next, ctx), id: pick.id };
 }
 
 /** Trasforma il pranzo `s` nell'avanzo della cena precedente (o viceversa). */
@@ -341,7 +514,7 @@ export function toggleLeftover(plan, s, ctx) {
     let bestScore = Infinity;
     for (const id of cand) {
       const t = slots.map((x) => ({ ...x }));
-      t[s] = { ...t[s], r: id, lo: false };
+      t[s] = { ...t[s], r: id, lo: false, custom: null };
       const sc = evaluate(t, ctx).total;
       if (sc < bestScore) {
         bestScore = sc;
@@ -353,14 +526,14 @@ export function toggleLeftover(plan, s, ctx) {
   }
   const dinner = ctx.recipes[plan.slots[s - 1]?.r];
   if (s % 2 !== 0 || slotDay(s) > 4 || s < 2 || !canPair(dinner)) return null;
-  slots[s] = { ...slots[s], r: dinner.id, lo: true, useAlt: false };
+  slots[s] = { ...slots[s], r: dinner.id, lo: true, useAlt: false, custom: slots[s - 1].custom || null };
   return finalizeEdit(plan, slots, ctx);
 }
 
 function finalizeEdit(plan, slots, ctx) {
   const next = { ...plan, slots };
   assignAlternatives(next, ctx, rng(Date.now() & 0xffff), plan.slots);
-  return next;
+  return fitPlan(next, ctx);
 }
 
 export const canBecomeLeftover = (plan, s, ctx) =>

@@ -13,6 +13,18 @@ Web app che, dato un regime alimentare, costruisce il **menù della settimana** 
 | **Alimenti freschi** | Stagionalità mese per mese (frutta e verdura fuori stagione penalizzate); opzione **due spese** (weekend + mercoledì): i prodotti molto deperibili come pesce e carne vengono comprati a metà settimana; avvisi quando conviene il surgelato. |
 | **Alternativa al pesce** | Ogni pasto di pesce mostra un'alternativa senza pesce compatibile (anche trasportabile se è un pranzo di lavoro). Basta un interruttore — o "Tutto senza pesce" — e la lista della spesa si aggiorna. |
 
+### Novità: piano alimentare, calorie e laboratorio
+
+| Funzione | Cosa fa |
+|---|---|
+| **📄 Allega il piano alimentare** | Carica il PDF (o un TXT, o incolla il testo) del piano del nutrizionista. L'app riconosce pasti, righe di alternative ("/"), grammature (anche "10-15 g", "un cucchiaio"), la regola di sostituzione dei legumi e i totali (kcal, proteine, carboidrati, grassi). Tutto è modificabile in un editor con gli alimenti riconosciuti evidenziati e gli eventuali refusi segnalati. Il PDF viene letto **solo nel browser** (pdf.js incluso nel progetto): non viene inviato a nessun server. |
+| **Ricette sulle grammature del piano** | Le ricette di pranzo e cena vengono riproporzionate sulle porzioni del piano: i carboidrati a parità di grammi di carboidrati, le proteine in "porzioni equivalenti" (es. 100 g carne = 60 g legumi secchi = 2 uova = 200 g tofu), l'olio come da piano, verdure libere. Colazioni e spuntini sono costruiti scegliendo tra le alternative del piano. Frequenze settimanali (carne bianca/rossa, pesce azzurro/bianco, legumi, uova, latticini, affettati, vegetali) e **pasto libero** rispettati. |
+| **🔥 Calorie** | kcal e macro su ogni pasto e su ogni giorno; i carboidrati di pranzo e cena si adattano giorno per giorno per centrare l'obiettivo (dal piano, oppure obiettivo calorico manuale nelle preferenze). |
+| **📊 Grafico dei macronutrienti** | Calorie giornaliere divise tra proteine, carboidrati e grassi con la linea dell'obiettivo, ripartizione dell'energia menù vs piano, tabella giorno per giorno. |
+| **🧪 Laboratorio** | Scegli un pasto (o una ricetta qualsiasi) e cambia quantità con cursori, togli/aggiungi/sostituisci ingredienti (mantenendo calorie, proteine, carboidrati, grassi o grammi): vedi subito come cambiano kcal e macro rispetto all'originale, all'obiettivo del pasto e al totale del giorno. "Applica al menù" aggiorna lista della spesa, meal prep, nutrienti e riepilogo. Include un calcolatore di **equivalenze** tra alimenti. |
+
+I valori nutrizionali sono medie da tabelle CREA e USDA (`js/data/nutrition.js`) e sono indicativi.
+
 Altre funzioni: regimi **mediterranea, flexitariana, pescetariana, vegetariana, vegana**; **senza glutine / senza lattosio** (con sostituzioni automatiche, es. farro → grano saraceno); esclusione di uova, frutta a guscio, funghi, maiale, crostacei; porzioni leggere/normali/abbondanti; 🔄 cambia un singolo piatto, 🔒 bloccalo quando rigeneri, ♻️ trasforma un pranzo nell'avanzo della cena; lista con spunte, copia/condividi e stampa. Tutto viene salvato nel browser e funziona offline (PWA, installabile sul telefono).
 
 ## Avvio
@@ -42,6 +54,13 @@ js/app.js                      logica dell'interfaccia
 js/data/ingredients.js         ingredienti: reparto, confezione, conservazione, stagionalità, tag, sostituti
 js/data/recipes.js             ricette e colazioni (quantità per 1 porzione)
 js/data/prep.js                attività di meal prep
+js/data/nutrition.js           valori nutrizionali per 100 g, ruoli (carboidrato/proteina…)
+js/data/aliases.js             riconoscimento degli alimenti scritti nel piano
+js/engine/plan.js              lettura del piano (testo/PDF), analisi porzioni, riproporzionamento
+js/engine/nutrition.js         calcoli nutrizionali ed equivalenze
+js/engine/week.js              vista della settimana con tutti i pasti e i totali
+js/ui/                         tab Piano, Laboratorio, Nutrienti
+js/vendor/pdfjs/               pdf.js (Mozilla, Apache 2.0) per leggere i PDF offline
 js/engine/diet.js              regimi, intolleranze, adattamento delle ricette
 js/engine/planner.js           generazione del menù (ottimizzazione simulated annealing)
 js/engine/shopping.js          lista della spesa

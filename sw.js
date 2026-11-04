@@ -1,9 +1,12 @@
 // Service worker: rende l'app utilizzabile offline (strategia network-first).
-const CACHE = 'menu-settimanale-v1';
+const CACHE = 'menu-settimanale-v2';
 const FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
-  'js/app.js', 'js/data/ingredients.js', 'js/data/recipes.js', 'js/data/prep.js',
+  'js/app.js', 'js/data/ingredients.js', 'js/data/recipes.js', 'js/data/prep.js', 'js/data/nutrition.js', 'js/data/aliases.js',
   'js/engine/common.js', 'js/engine/diet.js', 'js/engine/planner.js', 'js/engine/shopping.js', 'js/engine/mealprep.js',
+  'js/engine/nutrition.js', 'js/engine/plan.js', 'js/engine/week.js',
+  'js/vendor/pdfjs/pdf.min.js', 'js/vendor/pdfjs/pdf.worker.min.js',
+  'js/ui/util.js', 'js/ui/piano.js', 'js/ui/lab.js', 'js/ui/stats.js',
 ];
 
 self.addEventListener('install', (e) => {

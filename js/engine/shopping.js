@@ -1,6 +1,6 @@
 import { INGREDIENTS, CATEGORIES, CATEGORY_ORDER, SEASONAL_FRUIT, isPerishable } from '../data/ingredients.js';
 import { DAYS_SHORT, slotLabel } from './common.js';
-import { collectNeeds, slotEntries, breakfastEntries } from './planner.js';
+import { collectNeeds, slotEntries, extraEntries } from './planner.js';
 
 const LEFTOVER_IDEAS = {
   verdura: 'aggiungila a una frittata, a una vellutata o come contorno',
@@ -26,6 +26,7 @@ export function fmtQty(q, unit) {
 function describe(n) {
   const ing = INGREDIENTS[n.id];
   const item = { key: `${n.shop}|${n.id}`, id: n.id, name: ing.n, cat: ing.c, need: n.q, uses: [...new Set(n.uses)] };
+  if (n.id === 'frutta_mista') item.uses = [];
   if (ing.pk > 0) {
     const packs = Math.ceil(n.q / ing.pk - 1e-9);
     const left = packs * ing.pk - n.q;
@@ -50,12 +51,19 @@ function describe(n) {
 /** Lista della spesa completa per il piano (tiene conto delle alternative scelte al pesce). */
 export function shoppingList(plan, ctx) {
   const entries = slotEntries(plan.slots, ctx, { useAlt: true }).map((e, s) => ({ ...e, label: slotLabel(s) }));
-  const bEntries = breakfastEntries(plan, ctx).map((e) => ({ ...e, label: `${DAYS_SHORT[e.day]} colazione` }));
-  const all = [...entries, ...bEntries];
+  const xEntries = extraEntries(plan, ctx).map((e) => ({ ...e, label: `${DAYS_SHORT[e.day]} ${e.label.toLowerCase()}` }));
+  const all = [...entries, ...xEntries];
   const { needs, issues } = collectNeeds(all, ctx);
 
   const pantry = new Set();
+  const pantryQty = {};
   for (const e of all) for (const id of e.r.pantry || []) pantry.add(id);
+  for (const n of needs.values()) {
+    if (INGREDIENTS[n.id].pan) {
+      pantry.add(n.id);
+      pantryQty[n.id] = (pantryQty[n.id] || 0) + n.q;
+    }
+  }
 
   const shops = [0, 1].map((shop) => {
     const items = [...needs.values()].filter((n) => n.shop === shop).map(describe);
@@ -76,11 +84,18 @@ export function shoppingList(plan, ctx) {
 
   return {
     shops,
-    pantry: [...pantry].map((id) => ({ key: `p|${id}`, id, name: INGREDIENTS[id].n })).sort((a, b) => a.name.localeCompare(b.name, 'it')),
-    fruit: { portions: 14, suggestions: SEASONAL_FRUIT[ctx.month] },
+    pantry: [...pantry]
+      .map((id) => ({
+        key: `p|${id}`,
+        id,
+        name: INGREDIENTS[id].n,
+        buy: pantryQty[id] ? `~${fmtQty(Math.round(pantryQty[id] / 10) * 10, id === 'olio' ? 'ml' : 'g')} in settimana` : '',
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'it')),
+    fruit: { suggestions: SEASONAL_FRUIT[ctx.month] },
     warnings: issues.map((is) => ({
       id: is.id,
-      text: `${INGREDIENTS[is.id].n} per ${DAYS_SHORT[is.day]} ${is.meal === 'P' ? 'pranzo' : is.meal === 'C' ? 'cena' : 'colazione'} (${is.r.n}): ${
+      text: `${INGREDIENTS[is.id].n} per ${DAYS_SHORT[is.day]} ${is.meal === 'P' ? 'pranzo' : is.meal === 'C' ? 'cena' : 'colazione/spuntino'} (${is.r.n}): ${
         INGREDIENTS[is.id].frz ? 'compralo surgelato, oppure fresco il giorno stesso' : 'compralo il giorno stesso'
       }.`,
     })),
@@ -98,8 +113,8 @@ export function shoppingText(list, checked = {}) {
     }
     lines.push('');
   }
-  lines.push(`🍎 Frutta di stagione: ~${list.fruit.portions} porzioni (${list.fruit.suggestions})`);
+  lines.push(`🍎 Frutta di stagione consigliata: ${list.fruit.suggestions}`);
   const pantry = list.pantry.filter((p) => !checked[p.key]);
-  if (pantry.length) lines.push(`\n🧂 Dispensa (controlla): ${pantry.map((p) => p.name).join(', ')}`);
+  if (pantry.length) lines.push(`\n🧂 Dispensa (controlla): ${pantry.map((p) => p.name + (p.buy ? ` (${p.buy})` : '')).join(', ')}`);
   return lines.join('\n');
 }

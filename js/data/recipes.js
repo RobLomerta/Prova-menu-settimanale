@@ -321,6 +321,36 @@ export const RECIPES = [
     s: 'Soffritto di carota, sedano e cipolla, rosola il macinato, aggiungi i pelati e cuoci almeno 40 min (meglio nel weekend). Condisci la pasta.',
   },
 
+  // ===================== AFFETTATI MAGRI =====================
+  {
+    id: 'piadina_bresaola', n: 'Piadina con bresaola, rucola e scaglie di grana',
+    p: 'affettati', m: 'P', port: 1, b: 'pane', t: 5, keep: 1,
+    i: { piadina: 1, bresaola: 80, rucola: 40, parmigiano: 10, limone: 0.25 }, d: ['olio', 'sale_pepe'],
+    s: 'Farcisci la piadina con bresaola, rucola condita con limone e olio, scaglie di grana. Arrotola.',
+    tip: 'Rucola in un contenitorino a parte: componi al momento e la piadina resta asciutta.',
+  },
+  {
+    id: 'bresaola_rucola', n: 'Carpaccio di bresaola con rucola, grana e pane integrale',
+    p: 'affettati', m: 'C', b: 'pane', t: 10,
+    i: { bresaola: 80, rucola: 60, parmigiano: 15, limone: 0.25, pane: 60 }, d: ['olio', 'sale_pepe'],
+    s: 'Disponi la bresaola, condisci con limone e olio, copri con rucola e scaglie di grana. Pane a lato.',
+  },
+  {
+    id: 'cotto_patate', n: 'Prosciutto cotto con patate al forno e insalata',
+    p: 'affettati', m: 'PC', port: 1, b: 'patate', t: 35, keep: 2,
+    i: { prosciutto_cotto: 100, patate: 250, lattuga: 80 }, d: ['olio', 'sale_pepe', 'rosmarino'],
+    s: 'Patate a spicchi in forno a 200 °C per 30 min con rosmarino. Servi con prosciutto cotto e insalata.',
+    tip: 'Le patate si cuociono nella sessione di meal prep: sono buone anche a temperatura ambiente.',
+  },
+  {
+    id: 'riso_tacchino_affettato', n: 'Insalata di riso con fesa di tacchino, zucchine e pomodorini',
+    p: 'affettati', m: 'PC', port: 1, b: 'riso', t: 10, keep: 2,
+    i: { riso: 70, fesa_affettata: 100, zucchine: 150, pomodorini: 100 }, d: ['olio', 'sale_pepe', 'origano'],
+    mp: [['griglia', 'zucchine']],
+    s: 'Unisci al riso cotto la fesa di tacchino a striscioline, le zucchine grigliate e i pomodorini.',
+    tip: 'Si prepara la sera prima; condisci con olio al mattino.',
+  },
+
   // ===================== UOVA =====================
   {
     id: 'frittata_zucchine', n: 'Frittata di zucchine con pane integrale',
@@ -456,6 +486,12 @@ export const RECIPES = [
     s: 'In teglia tempeh a cubetti con soia, zucca e cavolo nero a striscioline: 200 °C per 25 min. Pane a lato.',
   },
 ];
+
+// Pasto libero previsto dal piano alimentare: non genera spesa né calcoli nutrizionali
+export const FREE_MEAL = {
+  id: 'libero', n: 'Pasto libero', p: 'libero', m: 'C', b: 'libero', t: 0, i: {}, d: [],
+  s: 'Goditi un pasto a tua scelta, senza sensi di colpa: fa parte del piano.',
+};
 
 // Colazioni: se ne scelgono due e si alternano (meno ingredienti, meno sprechi)
 export const BREAKFASTS = [

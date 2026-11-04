@@ -1,3 +1,5 @@
+import { NUTRITION, PIECE_WEIGHT, CARB_IDS, PROTEIN_KIND, FRUIT_IDS } from './nutrition.js';
+
 // Database ingredienti.
 //
 // Campi:
@@ -67,6 +69,22 @@ export const INGREDIENTS = {
   prezzemolo: V('Prezzemolo (1 mazzetto)', { pk: 30, sh: 5 }),
   basilico: V('Basilico (1 mazzetto)', { pk: 20, sh: 5, se: '5-9' }),
   zenzero: V('Zenzero fresco', { sh: 21 }),
+  patate_dolci: V('Patate americane (dolci)', { sh: 21, se: '9-3' }),
+  // frutta (per colazioni e spuntini)
+  banana: V('Banane', { sh: 6 }),
+  mela: V('Mele', { sh: 21 }),
+  pera: V('Pere', { sh: 7, se: '8-3' }),
+  kiwi: V('Kiwi', { sh: 14, se: '11-4' }),
+  uva: V('Uva', { sh: 5, se: '8-10' }),
+  frutti_bosco: V('Frutti di bosco', { pk: 125, sh: 3, se: '6-9', frz: true }),
+  pesche: V('Pesche', { sh: 5, se: '6-9' }),
+  albicocche: V('Albicocche', { sh: 5, se: '6-7' }),
+  ananas: V('Ananas', { sh: 6 }),
+  mango: V('Mango', { sh: 6 }),
+  mandarini: V('Mandarini', { sh: 10, se: '11-2' }),
+  fragole: V('Fragole', { pk: 250, sh: 3, se: '4-6' }),
+  cachi: V('Cachi', { sh: 7, se: '10-12' }),
+  frutta_mista: V('Frutta di stagione', { sh: 7 }),
 
   // --- Pesce --------------------------------------------------------------
   salmone: { n: 'Salmone (filetto)', c: 'pesce', u: 'g', pk: 0, sh: 2, f: true, t: ['fish'], frz: true },
@@ -83,7 +101,12 @@ export const INGREDIENTS = {
   manzo: { n: 'Manzo (straccetti o tagliata)', c: 'carne', u: 'g', pk: 0, sh: 3, f: true, t: ['meat'], frz: true },
   maiale: { n: 'Lonza di maiale', c: 'carne', u: 'g', pk: 0, sh: 3, f: true, t: ['meat', 'pork'], frz: true },
 
+  bresaola: { n: 'Bresaola', c: 'carne', u: 'g', pk: 80, sh: 20, op: 3, f: true, t: ['meat'] },
+  prosciutto_cotto: { n: 'Prosciutto cotto sgrassato', c: 'carne', u: 'g', pk: 100, sh: 15, op: 3, f: true, t: ['meat', 'pork'] },
+  fesa_affettata: { n: 'Fesa di tacchino affettata', c: 'carne', u: 'g', pk: 100, sh: 15, op: 3, f: true, t: ['meat'] },
+
   // --- Latticini e uova ---------------------------------------------------
+  albumi: { n: 'Albume d’uovo (brick)', c: 'latte', u: 'g', pk: 500, sh: 30, op: 5, t: ['egg'] },
   uova: { n: 'Uova', c: 'latte', u: 'pz', pk: 6, sh: 21, f: true, t: ['egg'] },
   mozzarella: { n: 'Mozzarella', c: 'latte', u: 'g', pk: 125, sh: 5, f: true, t: ['dairy', 'lactose'], sub: { lactose: 'mozzarella_sl' } },
   mozzarella_sl: { n: 'Mozzarella senza lattosio', c: 'latte', u: 'g', pk: 125, sh: 7, f: true, t: ['dairy'] },
@@ -91,8 +114,8 @@ export const INGREDIENTS = {
   ricotta_sl: { n: 'Ricotta senza lattosio', c: 'latte', u: 'g', pk: 250, sh: 7, op: 4, f: true, t: ['dairy'] },
   feta: { n: 'Feta', c: 'latte', u: 'g', pk: 200, sh: 30, op: 7, t: ['dairy', 'lactose'] },
   parmigiano: { n: 'Parmigiano Reggiano', c: 'latte', u: 'g', pk: 150, sh: 60, op: 30, t: ['dairy'], sub: { vegan: 'lievito' } },
-  yogurt: { n: 'Yogurt greco bianco', c: 'latte', u: 'g', pk: 170, sh: 14, f: true, t: ['dairy', 'lactose'], sub: { lactose: 'yogurt_sl', vegan: 'yogurt_soia' } },
-  yogurt_sl: { n: 'Yogurt greco senza lattosio', c: 'latte', u: 'g', pk: 150, sh: 14, f: true, t: ['dairy'], sub: { vegan: 'yogurt_soia' } },
+  yogurt: { n: 'Yogurt greco 0%', c: 'latte', u: 'g', pk: 170, sh: 14, f: true, t: ['dairy', 'lactose'], sub: { lactose: 'yogurt_sl', vegan: 'yogurt_soia' } },
+  yogurt_sl: { n: 'Yogurt greco 0% senza lattosio', c: 'latte', u: 'g', pk: 150, sh: 14, f: true, t: ['dairy'], sub: { vegan: 'yogurt_soia' } },
   yogurt_soia: { n: 'Yogurt di soia bianco', c: 'latte', u: 'g', pk: 125, sh: 14, f: true },
   latte: { n: 'Latte fresco', c: 'latte', u: 'ml', pk: 500, sh: 6, op: 3, f: true, t: ['dairy', 'lactose'], sub: { lactose: 'latte_sl', vegan: 'bevanda_soia' } },
   latte_sl: { n: 'Latte senza lattosio', c: 'latte', u: 'ml', pk: 500, sh: 10, op: 4, t: ['dairy'], sub: { vegan: 'bevanda_soia' } },
@@ -103,6 +126,9 @@ export const INGREDIENTS = {
   pane_gf: { n: 'Pane senza glutine', c: 'forno', u: 'g', pk: 300, sh: 5, op: 4, t: [], frz: true },
   piadina: { n: 'Piadine integrali', c: 'forno', u: 'pz', pk: 4, sh: 14, op: 5, t: ['gluten'], sub: { gluten: 'piadina_gf' } },
   piadina_gf: { n: 'Piadine senza glutine', c: 'forno', u: 'pz', pk: 3, sh: 14, op: 5 },
+
+  fette_biscottate: { n: 'Fette biscottate integrali', c: 'forno', u: 'g', pk: 300, sh: 120, t: ['gluten'], sub: { gluten: 'gallette' } },
+  gallette: { n: 'Gallette o crackers integrali (tipo Wasa)', c: 'forno', u: 'g', pk: 250, sh: 120 },
 
   // --- Pasta, cereali e legumi -------------------------------------------
   pasta: { n: 'Pasta integrale', c: 'secco', u: 'g', pk: 500, sh: 365, t: ['gluten'], sub: { gluten: 'pasta_gf' } },
@@ -116,6 +142,8 @@ export const INGREDIENTS = {
   miglio: { n: 'Miglio', c: 'secco', u: 'g', pk: 500, sh: 365, prep: 'cereali' },
   avena: { n: "Fiocchi d'avena", c: 'secco', u: 'g', pk: 500, sh: 180, t: ['gluten'], sub: { gluten: 'avena_gf' } },
   avena_gf: { n: "Fiocchi d'avena senza glutine", c: 'secco', u: 'g', pk: 500, sh: 180 },
+  polenta: { n: 'Farina di mais / polenta', c: 'secco', u: 'g', pk: 500, sh: 365 },
+  proteine_polvere: { n: 'Proteine in polvere', c: 'secco', u: 'g', pk: 1000, sh: 365, t: ['dairy'] },
   ceci: { n: 'Ceci secchi', c: 'secco', u: 'g', pk: 500, sh: 365, prep: 'legumi' },
   fagioli: { n: 'Fagioli secchi (borlotti o cannellini)', c: 'secco', u: 'g', pk: 500, sh: 365, prep: 'legumi' },
   lenticchie: { n: 'Lenticchie secche', c: 'secco', u: 'g', pk: 500, sh: 365, prep: 'legumi' },
@@ -124,11 +152,15 @@ export const INGREDIENTS = {
   // --- Proteine vegetali -------------------------------------------------
   tofu: { n: 'Tofu naturale', c: 'vegetali', u: 'g', pk: 200, sh: 20, op: 4 },
   tempeh: { n: 'Tempeh', c: 'vegetali', u: 'g', pk: 200, sh: 20, op: 4 },
+  burger_veg: { n: 'Burger vegetali', c: 'vegetali', u: 'g', pk: 200, sh: 10, op: 2 },
   seitan: { n: 'Seitan', c: 'vegetali', u: 'g', pk: 200, sh: 15, op: 4, t: ['gluten'] },
 
   // --- Conserve -----------------------------------------------------------
   pelati: { n: 'Pomodori pelati o polpa (barattolo)', c: 'conserve', u: 'g', pk: 400, sh: 365, op: 4 },
   tonno: { n: 'Tonno al naturale (scatoletta)', c: 'conserve', u: 'g', pk: 80, sh: 365, t: ['fish'] },
+  olive_verdi: { n: 'Olive verdi', c: 'conserve', u: 'g', pk: 200, sh: 90, op: 14 },
+  marmellata: { n: 'Marmellata o confettura extra', c: 'conserve', u: 'g', pk: 340, sh: 180, op: 30 },
+  barretta: { n: 'Barrette proteiche', c: 'secco', u: 'pz', pk: 3, sh: 180 },
   sgombro: { n: 'Sgombro al naturale (scatoletta)', c: 'conserve', u: 'g', pk: 125, sh: 365, t: ['fish'] },
 
   // --- Frutta secca e semi -----------------------------------------------
@@ -193,3 +225,23 @@ export function isPerishable(ing) {
   const days = Math.min(ing.sh ?? 365, ing.op ?? ing.sh ?? 365);
   return days <= 10;
 }
+
+// Arricchisce ogni ingrediente con valori nutrizionali e ruolo nel piatto
+for (const [id, ing] of Object.entries(INGREDIENTS)) {
+  ing.u ??= 'g';
+  ing.pk ??= 0;
+  ing.nu = NUTRITION[id] || [0, 0, 0, 0];
+  if (PIECE_WEIGHT[id]) ing.pw = PIECE_WEIGHT[id];
+  if (CARB_IDS.includes(id)) ing.ro = 'carb';
+  else if (PROTEIN_KIND[id]) { ing.ro = 'prot'; ing.px = PROTEIN_KIND[id]; }
+  else if (id === 'olio') ing.ro = 'fat';
+  else if (FRUIT_IDS.includes(id)) ing.ro = 'frutta';
+  else if (ing.c === 'verdura') ing.ro = 'veg';
+  else ing.ro = 'altro';
+}
+
+/** Grammi equivalenti di una quantità nell'unità dell'ingrediente. */
+export const gramsOf = (id, q) => {
+  const ing = INGREDIENTS[id];
+  return ing.u === 'pz' ? q * (ing.pw || 100) : q;
+};

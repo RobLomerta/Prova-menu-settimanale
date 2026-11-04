@@ -2,6 +2,7 @@ import { INGREDIENTS } from '../data/ingredients.js';
 import { PREP_TASKS } from '../data/prep.js';
 import { DAYS, slotDay, slotMeal, slotLabel, isWorkLunch } from './common.js';
 import { fmtQty } from './shopping.js';
+import { slotIngredients, shownId } from './planner.js';
 
 const SESSIONS = [
   { key: 'dom', title: 'Domenica', subtitle: 'Sessione principale · circa 1 h 30', start: -1 },
@@ -35,12 +36,14 @@ export function mealPrepPlan(plan, ctx) {
 
   plan.slots.forEach((sl, s) => {
     if (sl.lo) return; // è la seconda porzione della cena precedente
-    const r = ctx.recipes[sl.useAlt && sl.alt ? sl.alt : sl.r];
+    const r = ctx.recipes[shownId(sl)];
+    if (r.id === 'libero') return;
+    const items = slotIngredients(sl, s, ctx);
     const day = slotDay(s);
     const use = slotLabel(s);
     const double = plan.slots[s + 1]?.lo ? 2 : 1;
 
-    for (const { id, q } of r.ing) {
+    for (const { id, q } of items) {
       const key = INGREDIENTS[id].prep;
       if (!key) continue;
       const def = PREP_TASKS[key];
@@ -50,7 +53,7 @@ export function mealPrepPlan(plan, ctx) {
     }
     for (const [key, orig] of r.mp || []) {
       const id = r.idMap[orig] || orig;
-      const entry = r.ing.find((x) => x.id === id);
+      const entry = items.find((x) => x.id === id);
       const ses = sessionFor(day, PREP_TASKS[key].keep);
       if (ses && entry) add(ses, key, id, entry.q * double, use);
     }
@@ -94,7 +97,7 @@ export function mealPrepPlan(plan, ctx) {
   for (let d = 0; d < 5; d++) {
     const s = d * 2;
     const sl = plan.slots[s];
-    const r = ctx.recipes[sl.useAlt && sl.alt ? sl.alt : sl.r];
+    const r = ctx.recipes[shownId(sl)];
     evenings.push({
       when: d === 0 ? 'Domenica sera' : `${DAYS[d - 1]} sera`,
       forDay: DAYS[d],
