@@ -29,6 +29,9 @@ Web app che, dato un regime alimentare, costruisce il **menù della settimana** 
 
 | **🌿 Menù anti bruciore di stomaco** | In *Tipo di menù* scegli *Normale* o *Anti bruciore di stomaco (reflusso)*: esclude pomodoro, agrumi, cipolla, aglio e piccante, sostituisce gli alimenti più grassi con alternative leggere (macinato → tacchino, feta → ricotta, peperoni → zucchine), preferisce cene poco grasse e mostra un riquadro di consigli pratici. Un piatto che prende il nome da un alimento da evitare non viene proposto; se l'alimento è secondario viene tolto e la ricetta lo segnala. |
 
+| **👥 Numero di persone** | In *Persone* scegli per quante persone cucinare (1-8): spesa, confezioni, meal prep e contenitori vengono calcolati per tutti, le ricette mostrano la quantità totale e quella a persona, calorie e macro restano a persona. Con un piano alimentare le porzioni seguono il piano per tutti. |
+| **⭐ Le mie ricette** | Nel Laboratorio, *Salva come ricetta* aggiunge al ricettario il pasto che hai modificato (nome, proteina principale, pranzo/cena, da portare, preparazione): verrà proposto nei menù futuri. Senza piano si possono salvare anche le colazioni. Le ricette personali sono salvate nel browser e si eliminano dalla lista *Le mie ricette*. |
+
 I valori nutrizionali sono medie da tabelle CREA e USDA (`js/data/nutrition.js`) e sono indicativi.
 
 Altre funzioni: regimi **mediterranea, flexitariana, pescetariana, vegetariana, vegana**; **senza glutine / senza lattosio** (con sostituzioni automatiche, es. farro → grano saraceno); esclusione di uova, frutta a guscio, funghi, maiale, crostacei; porzioni leggere/normali/abbondanti; 🔄 cambia un singolo piatto, 🔒 bloccalo quando rigeneri, ♻️ trasforma un pranzo nell'avanzo della cena; lista con spunte, copia/condividi e stampa. Tutto viene salvato nel browser e funziona offline (PWA, installabile sul telefono).

@@ -2,7 +2,9 @@
 // e calcolatore di equivalenze tra alimenti.
 import { INGREDIENTS } from '../data/ingredients.js';
 import { nutrientsOf, nutrientsOfItem, energySplit, equivalent } from '../engine/nutrition.js';
-import { slotIngredients, shownId, fitPlan, extraEntries, setExtraDay, dayHasEdits } from '../engine/planner.js';
+import { slotIngredients, shownId, fitPlan, extraEntries, setExtraDay, dayHasEdits, slotName, assignAlternatives, candidatesFor, replaceSlot } from '../engine/planner.js';
+import { PROTEINS } from '../engine/diet.js';
+import { askConfirm } from './dialog.js';
 import { weekView, countedNutrients } from '../engine/week.js';
 import { slotMeal, DAYS, DAYS_SHORT } from '../engine/common.js';
 import { $, esc, r0, ingredientOptions, deltaHtml, shortName, macroLine } from './util.js';
@@ -139,7 +141,174 @@ function summaryHtml(app) {
         <button class="btn primary" data-action="lab-apply">✅ Applica al menù</button>
         <button class="btn" data-action="lab-reset">↺ ${lab.extra ? 'Combinazione originale' : 'Ricetta originale'}</button>
       </div>
-      <p class="small muted">Applicando, si aggiornano lista della spesa, meal prep e riepilogo.</p>` : '<p class="small muted">Stai esplorando una ricetta del ricettario: le modifiche non toccano il menù.</p>'}`;
+      <p class="small muted">Applicando, si aggiornano lista della spesa, meal prep e riepilogo.</p>` : '<p class="small muted">Stai esplorando una ricetta del ricettario: le modifiche non toccano il menù.</p>'}
+    ${canSave(app) ? `<button class="btn small save-recipe" data-action="lab-save-open">⭐ Salva come ricetta</button>
+      <p class="small muted">La aggiungi al ricettario: verrà proposta anche nei prossimi menù.</p>` : ''}`;
+}
+
+// ---------------------------------------------------------------------------
+// Salva come ricetta
+// ---------------------------------------------------------------------------
+
+const CAT_BY_ID = {
+  pollo: 'carne_bianca', tacchino: 'carne_bianca', macinato: 'carne_rossa', manzo: 'carne_rossa', maiale: 'carne_rossa',
+  bresaola: 'affettati', prosciutto_cotto: 'affettati', fesa_affettata: 'affettati', uova: 'uova', albumi: 'uova',
+  tofu: 'vegetale', tempeh: 'vegetale', seitan: 'vegetale', burger_veg: 'vegetale',
+};
+const BASE_BY_ID = {
+  pasta: 'pasta', pasta_gf: 'pasta', pane: 'pane', pane_gf: 'pane', piadina: 'pane', piadina_gf: 'pane', gallette: 'pane',
+  fette_biscottate: 'pane', patate: 'patate', patate_dolci: 'patate', riso: 'riso', avena: 'avena', avena_gf: 'avena',
+};
+
+function inferCategory(items) {
+  let best = null;
+  let bestQ = 0;
+  for (const x of items) {
+    const ing = INGREDIENTS[x.id];
+    if (ing.ro !== 'prot') continue;
+    const kcal = nutrientsOfItem(x.id, x.q).p;
+    if (kcal > bestQ) {
+      bestQ = kcal;
+      best = x.id;
+    }
+  }
+  if (!best) return 'legumi';
+  const px = INGREDIENTS[best].px;
+  if (px === 'pesce' || px === 'legumi' || px === 'formaggi') return px;
+  return CAT_BY_ID[best] || 'legumi';
+}
+
+function inferBase(items) {
+  const carb = items.filter((x) => INGREDIENTS[x.id].ro === 'carb').sort((a, b) => nutrientsOfItem(b.id, b.q).c - nutrientsOfItem(a.id, a.q).c)[0];
+  return carb ? BASE_BY_ID[carb.id] || carb.id : 'nessuna';
+}
+
+/** Si può salvare: pranzi e cene, ricette del ricettario e (senza piano) le colazioni. */
+function canSave(app) {
+  const { lab, ctx } = app.state;
+  if (lab.slot != null || lab.recipeId) return true;
+  return lab.extra?.key === 'colazione' && !ctx.plan;
+}
+
+function currentName(app) {
+  const { lab, plan, ctx } = app.state;
+  if (lab.slot != null) return slotName(plan.slots[lab.slot], lab.slot, ctx);
+  if (lab.recipeId) return ctx.recipes[lab.recipeId].n;
+  return extraEntries(plan, ctx).find((e) => e.key === lab.extra.key && e.day === lab.extra.day)?.name || '';
+}
+
+function sourceRecipe(app) {
+  const { lab, plan, ctx } = app.state;
+  if (lab.slot != null) return ctx.recipes[shownId(plan.slots[lab.slot])];
+  if (lab.recipeId) return ctx.recipes[lab.recipeId];
+  return null;
+}
+
+function openSaveForm(app) {
+  const { lab } = app.state;
+  const src = sourceRecipe(app);
+  const breakfast = !!lab.extra;
+  const cat = inferCategory(lab.draft);
+  const meal = lab.slot != null ? slotMeal(lab.slot) : src?.m || 'PC';
+  const back = document.createElement('div');
+  back.className = 'modal-backdrop';
+  back.innerHTML = `
+    <form class="modal save-form" id="save-recipe-form">
+      <p><strong>⭐ Salva come ricetta</strong></p>
+      <label class="field"><span>Nome del piatto</span><input id="sr-name" required maxlength="90" value="${esc(currentName(app))}"></label>
+      ${breakfast ? `
+        <label class="field"><span>Tipo di colazione</span><select id="sr-style">
+          <option value="dolce">Dolce</option><option value="salata" ${lab.draft.some((x) => CAT_BY_ID[x.id]) ? 'selected' : ''}>Salata</option></select></label>`
+      : `
+        <label class="field"><span>Proteina principale</span><select id="sr-cat">${Object.entries(PROTEINS)
+          .filter(([k]) => !['libero', 'pesce_azzurro', 'pesce_bianco'].includes(k))
+          .map(([k, v]) => `<option value="${k}" ${k === cat ? 'selected' : ''}>${esc(v.label)}</option>`).join('')}</select></label>
+        <fieldset class="field"><legend>Adatta a</legend>
+          <label class="check"><input type="checkbox" id="sr-p" ${meal.includes('P') ? 'checked' : ''}> pranzo</label>
+          <label class="check"><input type="checkbox" id="sr-c" ${meal.includes('C') ? 'checked' : ''}> cena</label>
+          <label class="check"><input type="checkbox" id="sr-port" ${src?.port || meal === 'P' ? 'checked' : ''}> si porta al lavoro (schiscetta)</label>
+        </fieldset>`}
+      <label class="field"><span>Preparazione (facoltativa)</span><textarea id="sr-steps" rows="3">${esc(src?.s || '')}</textarea></label>
+      ${lab.slot != null || breakfast ? '<label class="check"><input type="checkbox" id="sr-use" checked> Usala subito in questo pasto del menù</label>' : ''}
+      <p class="small warn" id="sr-err" hidden></p>
+      <div class="modal-actions">
+        <button type="button" class="btn" data-modal="no">Annulla</button>
+        <button type="submit" class="btn primary">Salva ricetta</button>
+      </div>
+    </form>`;
+  document.body.appendChild(back);
+  back.querySelector('#sr-name').focus();
+  back.addEventListener('click', (e) => {
+    if (e.target === back || e.target.closest('[data-modal="no"]')) back.remove();
+  });
+  back.querySelector('form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const err = back.querySelector('#sr-err');
+    const name = back.querySelector('#sr-name').value.trim();
+    const p = back.querySelector('#sr-p')?.checked;
+    const c = back.querySelector('#sr-c')?.checked;
+    if (!name) return Object.assign(err, { hidden: false, textContent: 'Dai un nome al piatto.' });
+    if (!breakfast && !p && !c) return Object.assign(err, { hidden: false, textContent: 'Scegli almeno pranzo o cena.' });
+    saveRecipe(app, {
+      name,
+      breakfast,
+      style: back.querySelector('#sr-style')?.value,
+      cat: back.querySelector('#sr-cat')?.value,
+      meals: `${p ? 'P' : ''}${c ? 'C' : ''}`,
+      port: back.querySelector('#sr-port')?.checked,
+      steps: back.querySelector('#sr-steps').value.trim(),
+      use: back.querySelector('#sr-use')?.checked,
+    });
+    back.remove();
+  });
+}
+
+function saveRecipe(app, f) {
+  const { lab } = app.state;
+  const items = lab.draft.filter((x) => x.q > 0);
+  const oil = items.find((x) => x.id === 'olio');
+  const i = Object.fromEntries(items.filter((x) => x.id !== 'olio').map((x) => [x.id, x.q]));
+  const src = sourceRecipe(app);
+  const id = `u_${Date.now().toString(36)}`;
+  const rec = f.breakfast
+    ? { id, user: true, m: 'B', n: f.name, style: f.style, i, d: oil ? ['olio'] : [], s: f.steps }
+    : {
+        id, user: true, n: f.name, p: f.cat, m: f.meals, port: f.port ? 1 : 0, b: inferBase(items), t: src?.t || 20,
+        keep: f.port ? 2 : undefined, i, d: [...new Set(['olio', ...(src?.d || ['sale_pepe'])])], oil: oil?.q ?? 0,
+        s: f.steps || 'Ricetta personale.', tip: f.port ? 'Ricetta personale: prepara la schiscetta la sera prima.' : undefined,
+      };
+  app.state.userRecipes.push(rec);
+  app.refreshContext();
+  const { plan, ctx } = app.state;
+  if (f.use && ctx.recipes[id] && lab.slot != null) {
+    const s = lab.slot;
+    plan.slots[s] = { ...plan.slots[s], r: id, custom: null, useAlt: false, alt: null };
+    if (s % 2 === 1 && plan.slots[s + 1]?.lo) plan.slots[s + 1] = { ...plan.slots[s + 1], r: id, custom: null };
+    assignAlternatives(plan, ctx, undefined, plan.slots);
+    fitPlan(plan, ctx);
+    openLab(app, s);
+  } else if (f.use && f.breakfast && lab.extra) {
+    setExtraDay(plan, 'colazione', lab.extra.day, { combo: { n: f.name, ing: items, style: f.style }, custom: null });
+    fitPlan(plan, ctx);
+    openExtra(app, 'colazione', lab.extra.day);
+  }
+  app.save();
+  app.rerender();
+  app.toast(ctx.recipes[id] || f.breakfast ? `Ricetta “${f.name}” salvata: verrà proposta nei prossimi menù` : `Ricetta salvata, ma non è compatibile con le preferenze attuali`);
+}
+
+function myRecipesHtml(app) {
+  const list = app.state.userRecipes || [];
+  if (!list.length) return '';
+  const meals = (r) => (r.m === 'B' ? `colazione ${r.style || 'dolce'}` : [r.m.includes('P') && 'pranzo', r.m.includes('C') && 'cena'].filter(Boolean).join(' e '));
+  return `
+    <section class="panel">
+      <h3>⭐ Le mie ricette (${list.length})</h3>
+      <ul class="items">${list.map((r) => `
+        <li><div class="my-recipe"><span><strong>${esc(r.n)}</strong> <span class="small muted">· ${esc(meals(r))}${r.p ? ` · ${esc(PROTEINS[r.p]?.label || r.p)}` : ''}${r.port ? ' · da portare' : ''}</span>
+          ${app.state.ctx.recipes[r.id] || app.state.ctx.breakfasts[r.id] ? '' : '<span class="small warn"> · non compatibile con le preferenze attuali</span>'}</span>
+          <button class="icon-btn" data-action="lab-delete-recipe" data-id="${esc(r.id)}" title="Elimina ricetta">🗑️</button></div></li>`).join('')}</ul>
+    </section>`;
 }
 
 function rowCells(x) {
@@ -237,7 +406,8 @@ export function renderLab(app) {
       </section>
       <section class="panel lab-summary" id="lab-summary">${summaryHtml(app)}</section>
     </div>
-    <section class="panel" id="lab-eq">${equivalenceHtml(app)}</section>`;
+    <section class="panel" id="lab-eq">${equivalenceHtml(app)}</section>
+    ${myRecipesHtml(app)}`;
 }
 
 function live(app, i) {
@@ -280,6 +450,37 @@ export const labActions = (app) => ({
   'x-edit': (el) => {
     openExtra(app, el.dataset.key, Number(el.dataset.day));
     app.setTab('lab');
+  },
+  'lab-save-open': () => openSaveForm(app),
+  'lab-delete-recipe': async (el) => {
+    const id = el.dataset.id;
+    const rec = app.state.userRecipes.find((r) => r.id === id);
+    if (!rec || !(await askConfirm(`Eliminare la ricetta “${rec.n}”?`, { ok: 'Elimina' }))) return;
+    app.state.userRecipes = app.state.userRecipes.filter((r) => r.id !== id);
+    app.refreshContext();
+    let { plan } = app.state;
+    const { ctx } = app.state;
+    // i pasti del menù che usavano la ricetta ricevono un altro piatto
+    const cand = candidatesFor(ctx);
+    const affected = [];
+    plan.slots.forEach((sl, s) => {
+      if (sl.alt === id) plan.slots[s] = { ...sl, alt: null, useAlt: false };
+      if (sl.r === id) {
+        plan.slots[s] = { ...sl, r: cand[s][0], lo: false, custom: null, useAlt: false };
+        affected.push(s);
+      }
+    });
+    for (const s of affected) {
+      const res = replaceSlot(plan, s, ctx);
+      if (res) plan = res.plan;
+    }
+    assignAlternatives(plan, ctx, undefined, plan.slots);
+    fitPlan(plan, ctx);
+    app.state.plan = plan;
+    app.state.lab = null;
+    app.save();
+    app.rerender();
+    app.toast('Ricetta eliminata');
   },
   'lab-apply': () => {
     const { lab, plan, ctx } = app.state;

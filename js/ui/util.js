@@ -5,8 +5,8 @@ export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&a
 export const r0 = (x) => Math.round(x).toLocaleString('it-IT');
 export const shortName = (id) => INGREDIENTS[id].n.replace(/ \(.*\)$/, '');
 
-export function macroLine(n, { kcal = true } = {}) {
-  return `${kcal ? `<strong>${r0(n.kcal)} kcal</strong> · ` : ''}<span class="m-p">P ${r0(n.p)}</span> · <span class="m-c">C ${r0(n.c)}</span> · <span class="m-f">G ${r0(n.f)}</span>`;
+export function macroLine(n, { kcal = true, perPerson = false } = {}) {
+  return `${kcal ? `<strong>${r0(n.kcal)} kcal</strong>${perPerson ? ' a persona' : ''} · ` : ''}<span class="m-p">P ${r0(n.p)}</span> · <span class="m-c">C ${r0(n.c)}</span> · <span class="m-f">G ${r0(n.f)}</span>`;
 }
 
 /** <option> di tutti gli ingredienti, raggruppati per reparto. */

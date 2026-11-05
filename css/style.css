@@ -492,3 +492,9 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .reflux-note summary { cursor: pointer; list-style: none; }
 .reflux-note summary::-webkit-details-marker { display: none; }
 .reflux-note ul { margin: 8px 0 2px; }
+.save-form { display: flex; flex-direction: column; gap: 10px; max-height: 90vh; overflow-y: auto; }
+.save-form p { margin: 0; }
+.save-form input, .save-form select, .save-form textarea { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); font: inherit; }
+.save-form textarea { min-height: 70px; font-size: 0.9rem; }
+.save-recipe { margin-top: 10px; }
+.my-recipe { display: flex; justify-content: space-between; align-items: center; gap: 8px; }

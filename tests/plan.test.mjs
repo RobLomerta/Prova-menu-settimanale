@@ -219,3 +219,26 @@ test('menù anti bruciore di stomaco: niente pomodoro, agrumi, cipolla, aglio, p
   const normal = buildContext({ month: 7 });
   assert.ok(normal.recipes.farro_caprese && normal.recipes.pasta_ceci);
 });
+
+test('ricette personali: entrano nel ricettario e nei menù', () => {
+  const mine = [{ id: 'u_test', user: true, n: 'Riso di nonna con ceci', p: 'legumi', m: 'PC', port: 1, b: 'riso', t: 20, i: { riso: 70, ceci: 60, zucchine: 150 }, d: ['olio', 'sale_pepe'], oil: 10, s: 'Ricetta personale.' }];
+  const ctx = buildContext({ month: 11 }, null, mine);
+  assert.ok(ctx.recipes.u_test, 'presente nel contesto');
+  assert.ok(ctx.recipes.u_test.ing.some((x) => x.id === 'olio' && x.q === 10));
+  const ctxVegan = buildContext({ month: 11, regime: 'vegana' }, null, mine);
+  assert.ok(ctxVegan.recipes.u_test);
+  const bf = [{ id: 'u_bf', user: true, m: 'B', n: 'Pane e ricotta della nonna', style: 'salata', i: { pane: 60, ricotta: 80 }, d: [] }];
+  assert.ok(buildContext({ month: 11 }, null, bf).breakfasts.u_bf);
+});
+
+test('numero di persone: spesa e meal prep moltiplicati, valori nutrizionali a persona', () => {
+  const one = buildContext({ month: 11, people: 1 });
+  const three = buildContext({ month: 11, people: 3 });
+  const plan = generatePlan(one, { seed: 9 });
+  const total = (ctx) => shoppingList(plan, ctx).shops.flatMap((s) => s.groups.flatMap((g) => g.items)).filter((i) => !INGREDIENTS[i.id].pk).reduce((a, i) => a + i.need, 0);
+  assert.ok(Math.abs(total(three) - 3 * total(one)) < 1, `${total(one)} → ${total(three)}`);
+  assert.equal(Math.round(weekView(plan, three).avg.kcal), Math.round(weekView(plan, one).avg.kcal));
+  const grains = (ctx) => mealPrepPlan(plan, ctx).sessions.flatMap((x) => x.tasks).filter((t) => t.key === 'cereali').flatMap((t) => t.items).map((i) => parseInt(i.qty, 10)).reduce((a, b) => a + b, 0);
+  assert.equal(grains(three), 3 * grains(one));
+  assert.match(mealPrepPlan(plan, three).gear, /15 contenitori/);
+});

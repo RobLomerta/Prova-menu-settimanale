@@ -70,6 +70,9 @@ export const INGREDIENTS = {
   basilico: V('Basilico (1 mazzetto)', { pk: 20, sh: 5, se: '5-9' }),
   zenzero: V('Zenzero fresco', { sh: 21 }),
   patate_dolci: V('Patate americane (dolci)', { sh: 21, se: '9-3' }),
+  asparagi: V('Asparagi (1 mazzo)', { pk: 500, sh: 3, se: '3-6' }),
+  carciofi: V('Carciofi', { sh: 5, se: '11-4' }),
+  bietole: V('Bietole', { sh: 4, se: '3-11' }),
   // frutta (per colazioni e spuntini)
   banana: V('Banane', { sh: 6 }),
   mela: V('Mele', { sh: 21 }),

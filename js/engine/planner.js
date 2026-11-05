@@ -21,7 +21,7 @@ export function collectNeeds(entries, ctx) {
       const key = `${shop}|${id}`;
       let n = needs.get(key);
       if (!n) needs.set(key, (n = { id, shop, q: 0, uses: [] }));
-      n.q += q;
+      n.q += q * (ctx.people || 1); // si compra per tutte le persone
       if (e.label) n.uses.push(e.label);
     }
   }

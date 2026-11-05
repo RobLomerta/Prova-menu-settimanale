@@ -99,6 +99,7 @@ export const DEFAULT_SETTINGS = {
   breakfast: true,
   breakfastStyle: 'dolce', // dolce | salata | alternata
   menuType: 'normale', // normale | reflusso
+  people: 1, // persone per cui si cucina e si fa la spesa
   leftovers: 2,
   month: new Date().getMonth() + 1,
 };
@@ -176,7 +177,7 @@ function scaleMain(items, k) {
 }
 
 /** Prepara il contesto: ricette compatibili, porzioni, obiettivi. */
-export function buildContext(settings, dietPlan = null) {
+export function buildContext(settings, dietPlan = null, userRecipes = []) {
   const s = { ...DEFAULT_SETTINGS, ...settings };
   const regime = REGIMES[s.regime] || REGIMES.mediterranea;
   const excluded = new Set(regime.excl);
@@ -191,6 +192,7 @@ export function buildContext(settings, dietPlan = null) {
 
   const ctx = {
     settings: s,
+    people: Math.max(1, Math.min(12, Math.round(Number(s.people) || 1))),
     excluded,
     vegan: s.regime === 'vegana',
     month: s.month,
@@ -225,11 +227,12 @@ export function buildContext(settings, dietPlan = null) {
   let factor = PORTIONS[s.portion] || 1;
 
   const resolved = [];
-  for (const r of RECIPES) {
+  const mine = (userRecipes || []).filter((r) => r && r.i && r.m);
+  for (const r of [...RECIPES, ...mine.filter((r) => r.m !== 'B')]) {
     const res = resolveRecipe(r, ctx);
     if (res) resolved.push(res);
   }
-  for (const b of BREAKFASTS) {
+  for (const b of [...BREAKFASTS, ...mine.filter((r) => r.m === 'B')]) {
     const res = resolveRecipe({ ...b, p: 'colazione', m: 'B' }, ctx, { oil: false });
     if (res) ctx.breakfasts[b.id] = res;
   }

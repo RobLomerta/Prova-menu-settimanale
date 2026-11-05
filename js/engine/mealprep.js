@@ -41,7 +41,7 @@ export function mealPrepPlan(plan, ctx) {
     const items = slotIngredients(sl, s, ctx);
     const day = slotDay(s);
     const use = slotLabel(s);
-    const double = plan.slots[s + 1]?.lo ? 2 : 1;
+    const double = (plan.slots[s + 1]?.lo ? 2 : 1) * (ctx.people || 1);
 
     for (const { id, q } of items) {
       const key = INGREDIENTS[id].prep;
@@ -77,12 +77,12 @@ export function mealPrepPlan(plan, ctx) {
       if (!key) continue;
       const def = PREP_TASKS[key];
       const ses = sessionFor(e.day, def.keepBy?.[id] ?? def.keep);
-      if (ses) add(ses, key, id, q, use);
+      if (ses) add(ses, key, id, q * (ctx.people || 1), use);
     }
     if (e.ing.some((x) => x.id === 'ceci') && e.ing.some((x) => x.id === 'tahina')) {
       const ceci = e.ing.find((x) => x.id === 'ceci');
       const ses = sessionFor(e.day, PREP_TASKS.hummus.keep);
-      if (ses) add(ses, 'hummus', 'ceci', ceci.q, use);
+      if (ses) add(ses, 'hummus', 'ceci', ceci.q * (ctx.people || 1), use);
     }
   }
 
@@ -128,7 +128,7 @@ export function mealPrepPlan(plan, ctx) {
     });
   }
 
-  const lunches = plan.slots.filter((_, s) => isWorkLunch(s)).length;
+  const lunches = plan.slots.filter((_, s) => isWorkLunch(s)).length * (ctx.people || 1);
   return {
     sessions,
     evenings,

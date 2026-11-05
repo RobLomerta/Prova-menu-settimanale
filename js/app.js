@@ -24,6 +24,7 @@ const TABS = ['menu', 'spesa', 'prep', 'lab', 'stats', 'piano'];
 const state = {
   settings: { ...DEFAULT_SETTINGS },
   dietPlan: null,
+  userRecipes: [], // ricette salvate dal Laboratorio
   plan: null,
   checked: {},
   tab: 'menu',
@@ -44,6 +45,7 @@ function load() {
     const data = JSON.parse(raw);
     state.settings = { ...DEFAULT_SETTINGS, ...data.settings };
     state.dietPlan = data.dietPlan || null;
+    state.userRecipes = Array.isArray(data.userRecipes) ? data.userRecipes : [];
     state.plan = data.plan?.extras ? data.plan : null; // i piani della versione precedente vengono rigenerati
     state.checked = data.checked || {};
     state.tab = TABS.includes(data.tab) ? data.tab : 'menu';
@@ -55,7 +57,7 @@ function load() {
 function save() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
-      settings: state.settings, dietPlan: state.dietPlan, plan: state.plan, checked: state.checked, tab: state.tab,
+      settings: state.settings, dietPlan: state.dietPlan, userRecipes: state.userRecipes, plan: state.plan, checked: state.checked, tab: state.tab,
     }));
   } catch {
     /* ignora */
@@ -81,7 +83,7 @@ function toast(msg) {
 }
 
 function regenerate({ keepLocked = true } = {}) {
-  state.ctx = buildContext(state.settings, state.dietPlan);
+  state.ctx = buildContext(state.settings, state.dietPlan, state.userRecipes);
   const fixed = keepLocked && state.plan ? state.plan.slots.map((s) => (s.locked ? s : null)) : [];
   try {
     const previous = state.plan;
@@ -119,7 +121,13 @@ function setTab(tab) {
   window.scrollTo({ top: $('.tabs').offsetTop - 70 });
 }
 
-const app = { state, save, rerender: () => render(), regenerate, toast, setTab };
+/** Ricostruisce il contesto (es. dopo aver salvato una ricetta) senza rigenerare il menù. */
+function refreshContext() {
+  state.ctx = buildContext(state.settings, state.dietPlan, state.userRecipes);
+  if (state.plan) fitPlan(state.plan, state.ctx);
+}
+
+const app = { state, save, rerender: () => render(), regenerate, toast, setTab, refreshContext };
 
 const actions = {
   generate: () => {
@@ -294,6 +302,10 @@ function renderSettings() {
       <select name="regime">${Object.entries(REGIMES).map(([k, r]) => opt(k, r.label, s.regime)).join('')}</select>
     </label>
     <label class="field">
+      <span>Persone</span>
+      <select name="people">${[1, 2, 3, 4, 5, 6, 7, 8].map((n) => opt(n, n === 1 ? '1 persona' : `${n} persone`, s.people || 1)).join('')}</select>
+    </label>
+    <label class="field">
       <span>Tipo di menù</span>
       <select name="menuType">${Object.entries(MENU_TYPES).map(([k, l]) => opt(k, l, s.menuType || 'normale')).join('')}</select>
     </label>
@@ -345,6 +357,7 @@ function renderSettings() {
   const ex = s.exclude.map((k) => EXCLUSIONS[k].toLowerCase());
   const tags = [
     planOn ? `📄 piano ${t ? `${r0(t.kcal)} kcal` : ''}` : s.kcalTarget ? `${s.kcalTarget} kcal` : null,
+    (s.people || 1) > 1 && `${s.people} persone`,
     REGIMES[s.regime].label, s.menuType === 'reflusso' && 'anti bruciore di stomaco', s.gluten && 'senza glutine', s.lactose && 'senza lattosio', ex.length && `no ${ex.join(', ')}`,
   ].filter(Boolean);
   $('#settings-summary').textContent = tags.join(' · ');
@@ -366,6 +379,7 @@ function readSettings(form) {
     breakfast: form.breakfast.disabled ? state.settings.breakfast : fd.has('breakfast'),
     breakfastStyle: fd.get('breakfastStyle') || 'dolce',
     menuType: fd.get('menuType') || 'normale',
+    people: Number(fd.get('people')) || 1,
     fitPortions: fd.has('fitPortions'),
     kcalTarget: kcal >= 800 ? kcal : null,
     usePlan: form.usePlan ? fd.has('usePlan') : state.settings.usePlan,
@@ -382,20 +396,26 @@ function proteinBadge(cat) {
 }
 
 function ingList(items) {
+  const people = state.ctx?.people || 1;
+  const fmt = (id, q) => (INGREDIENTS[id].u === 'pz' ? `${(Math.round(q * 10) / 10).toLocaleString('it-IT')}` : fmtQty(q, INGREDIENTS[id].u));
   return items
     .map(({ id, q }) => {
       const i = INGREDIENTS[id];
-      const qty = i.u === 'pz' ? `${q.toLocaleString('it-IT')}` : fmtQty(q, i.u);
+      // con più persone: quantità totale da cucinare, e quella a persona tra parentesi
+      const qty = people > 1 ? `${fmt(id, q * people)} (${fmt(id, q)} a persona)` : fmt(id, q);
       return `<li>${esc(i.n.replace(/ \(.*\)$/, ''))} <span class="muted">${esc(qty)}</span></li>`;
     })
     .join('');
 }
+
+const peopleNote = () => ((state.ctx?.people || 1) > 1 ? `<p class="small muted">Quantità per ${state.ctx.people} persone.</p>` : '');
 
 function recipeDetails(r, items, { leftover = false } = {}) {
   const pantry = r.pantry.filter((id) => id !== 'olio').map((id) => INGREDIENTS[id].n).join(', ');
   return `
     <details class="recipe">
       <summary>Ingredienti e preparazione</summary>
+      ${peopleNote()}
       <ul class="ing-list">${ingList(items)}</ul>
       ${pantry ? `<p class="muted small">Dalla dispensa: ${esc(pantry)}</p>` : ''}
       <p>${esc(r.s)}</p>
@@ -456,7 +476,7 @@ function mealBlock(s, nut) {
         </span>
       </div>
       <h4>${esc(slotName(sl, s, ctx))} ${proteinBadge(shown.cat)}</h4>
-      <p class="macro small">${macroLine(nut)}</p>
+      <p class="macro small">${macroLine(nut, { perPerson: state.ctx.people > 1 })}</p>
       ${outSeason.length ? `<p class="small warn">Fuori stagione: ${esc(outSeason.join(', '))}</p>` : ''}
       ${alt}
       ${recipeDetails(shown, items, { leftover: sl.lo })}
@@ -483,9 +503,10 @@ function extraBlock(m) {
         </span>
       </div>
       <h4>${esc(m.name)}</h4>
-      <p class="macro small">${macroLine(m.n)}</p>
+      <p class="macro small">${macroLine(m.n, { perPerson: state.ctx.people > 1 })}</p>
       <details class="recipe">
         <summary>Ingredienti e preparazione</summary>
+        ${peopleNote()}
         <ul class="ing-list">${ingList(m.ing)}</ul>
         ${r.s ? `<p>${esc(r.s)}</p>` : ''}
         ${work ? '<p class="tip">🎒 Porta lo spuntino in un contenitorino; yogurt, affettati e albumi in borsa termica.</p>' : ''}
@@ -561,7 +582,7 @@ function renderShopping() {
     + Object.values(plan.extraDay || {}).reduce((n, days) => n + Object.values(days).filter((o) => o.custom).length, 0);
   el.innerHTML = `
     <div class="toolbar">
-      <p class="muted small">${nAlt ? `Include ${nAlt} alternativ${nAlt > 1 ? 'e' : 'a'} senza pesce. ` : ''}${nCustom ? `Include ${nCustom} pas${nCustom > 1 ? 'ti modificati' : 'to modificato'}. ` : ''}Spunta ciò che hai già o che metti nel carrello.</p>
+      <p class="muted small">${state.ctx.people > 1 ? `<strong>Quantità per ${state.ctx.people} persone.</strong> ` : ''}${nAlt ? `Include ${nAlt} alternativ${nAlt > 1 ? 'e' : 'a'} senza pesce. ` : ''}${nCustom ? `Include ${nCustom} pas${nCustom > 1 ? 'ti modificati' : 'to modificato'}. ` : ''}Spunta ciò che hai già o che metti nel carrello.</p>
       <div class="toolbar-btns">
         <button class="btn small" data-action="copy">📋 Copia / condividi</button>
         <button class="btn small ghost" data-action="clear-checks">Azzera spunte</button>
@@ -610,7 +631,7 @@ function renderPrep() {
           <div class="task">
             <h4>🍲 Piatti da cucinare per intero</h4>
             <ul>${ses.dishes.map((d) => `
-              <li><strong>${esc(d.name)}</strong>${d.portions > 1 ? ' (2 porzioni)' : ''}${d.custom ? ' <span class="pill edit">✏️ modificato</span>' : ''}
+              <li><strong>${esc(d.name)}</strong>${d.portions > 1 ? ` (${d.portions} porzioni)` : ''}${d.custom ? ' <span class="pill edit">✏️ modificato</span>' : ''}
                 ${d.items ? `<div class="small">${esc(d.items)}</div>` : ''}
                 <div class="small muted">per: ${esc(d.use)} · in frigo ${d.keep} giorni${d.fz ? ' · oppure congela' : ''}</div>
               </li>`).join('')}</ul>
@@ -654,7 +675,7 @@ function render() {
 
 function init() {
   load();
-  state.ctx = buildContext(state.settings, state.dietPlan);
+  state.ctx = buildContext(state.settings, state.dietPlan, state.userRecipes);
   if (!planIsValid(state.plan, state.ctx)) state.plan = null;
   if (!state.plan) regenerate({ keepLocked: false });
   else {
