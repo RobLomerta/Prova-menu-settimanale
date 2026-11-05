@@ -25,6 +25,8 @@ Web app che, dato un regime alimentare, costruisce il **menù della settimana** 
 
 | **☕ Colazione dolce o salata** | Nelle preferenze scegli colazione *dolce*, *salata* o *alternata*; nel menù puoi cambiare lo stile del singolo giorno con un tocco (🍯/🧀). Con il piano, la salata usa pane o gallette con uova, albumi o affettati magri (frutta a parte), la dolce avena, fette biscottate, yogurt, frutta e marmellata. Gli affettati della colazione non contano nella frequenza settimanale, che riguarda solo pranzi e cene. |
 
+| **🌿 Menù normale o anti-bruciore** | In cima al menù (o nelle preferenze, "Tipo di menù") scegli tra menù *normale* e *anti-bruciore*, pensato per reflusso e gastrite. Nell'anti-bruciore: pomodorini → cetrioli, pomodori → zucchine, arance → mele, feta → ricotta, curry → curcuma; aglio, cipolla, limone, aceto e peperoncino vengono tolti; i piatti a base di sugo di pomodoro (ragù, parmigiana, uova in purgatorio…) sono esclusi. Anche colazioni, spuntini e frutta di stagione evitano agrumi, kiwi e ananas. Il nome del piatto, la lista della spesa e il meal prep seguono le modifiche, e il menù mostra i consigli di base (pasti piccoli, cena presto, niente caffè, alcol e fritti). |
+
 | **💬 Claude (facoltativo)** | Con la **tua chiave API Anthropic** (inserita nel pannello "Chiedi a Claude", salvata solo nel tuo browser) puoi: fare domande su ricette, sostituzioni e organizzazione della settimana, con Claude che conosce piano, preferenze e menù; far leggere a Claude piani alimentari in **qualsiasi formato**, anche foto e scansioni, comprese le tabelle in immagine (es. le frequenze). Le richieste vanno direttamente dal browser ad Anthropic (modello `claude-opus-5-5`), senza server intermedi; si paga a consumo sul proprio account. Senza chiave l'app funziona come prima e il piano viene letto solo sul dispositivo. |
 
 I valori nutrizionali sono medie da tabelle CREA e USDA (`js/data/nutrition.js`) e sono indicativi.
@@ -48,7 +50,7 @@ Per usarla dal telefono si può pubblicare gratis con **GitHub Pages** (Settings
 npm test
 ```
 
-I test verificano, per ogni regime e in diverse stagioni, che i piani rispettino esclusioni e intolleranze, che i pranzi lun-ven siano trasportabili, che ogni pasto di pesce abbia un'alternativa valida, e la coerenza di lista della spesa e meal prep.
+I test verificano, per ogni regime e in diverse stagioni (anche con il menù anti-bruciore), che i piani rispettino esclusioni e intolleranze, che i pranzi lun-ven siano trasportabili, che ogni pasto di pesce abbia un'alternativa valida, e la coerenza di lista della spesa e meal prep.
 
 ## Struttura
 

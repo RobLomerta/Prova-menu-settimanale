@@ -447,7 +447,7 @@ export function alternativeExtra(plan, ctx, key, day, tried = new Set(), rand = 
       if (!skip.has(comboSig(c))) cands.push(c);
     }
   } else {
-    const fruits = FRUIT_IDS.filter((f) => f !== 'frutta_mista' && resolveIngredient(f, ctx.excluded, ctx.vegan) && inSeason(INGREDIENTS[f], ctx.month));
+    const fruits = FRUIT_IDS.filter((f) => f !== 'frutta_mista' && resolveIngredient(f, ctx.excluded, ctx.vegan) === f && inSeason(INGREDIENTS[f], ctx.month));
     for (const f of fruits) {
       const c = { n: `${INGREDIENTS[f].n} (2 porzioni)`, ing: [{ id: f, q: 300 }] };
       if (!skip.has(comboSig(c))) cands.push(c);
@@ -589,7 +589,7 @@ function breakfastName(ing, style) {
 function rawChoices(food, ctx, kind) {
   const ok = (id) => INGREDIENTS[id] && resolveIngredient(id, ctx.excluded, ctx.vegan);
   const seasonal = (ids) => {
-    const r = ids.filter((id) => ok(id));
+    const r = ids.filter((id) => ok(id) === id); // es. niente agrumi nel menù anti-bruciore
     const s = r.filter((id) => inSeason(INGREDIENTS[id], ctx.month));
     return s.length ? s : r;
   };

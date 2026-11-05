@@ -92,7 +92,7 @@ export function shoppingList(plan, ctx) {
         buy: pantryQty[id] ? `~${fmtQty(Math.round(pantryQty[id] / 10) * 10, id === 'olio' ? 'ml' : 'g')} in settimana` : '',
       }))
       .sort((a, b) => a.name.localeCompare(b.name, 'it')),
-    fruit: { suggestions: SEASONAL_FRUIT[ctx.month] },
+    fruit: { suggestions: fruitFor(ctx) },
     warnings: issues.map((is) => ({
       id: is.id,
       text: `${INGREDIENTS[is.id].n} per ${DAYS_SHORT[is.day]} ${is.meal === 'P' ? 'pranzo' : is.meal === 'C' ? 'cena' : 'colazione/spuntino'} (${is.r.n}): ${
@@ -117,4 +117,12 @@ export function shoppingText(list, checked = {}) {
   const pantry = list.pantry.filter((p) => !checked[p.key]);
   if (pantry.length) lines.push(`\n🧂 Dispensa (controlla): ${pantry.map((p) => p.name + (p.buy ? ` (${p.buy})` : '')).join(', ')}`);
   return lines.join('\n');
+}
+
+/** Frutta di stagione da suggerire (senza agrumi e frutta acida nel menù anti-bruciore). */
+function fruitFor(ctx) {
+  const all = SEASONAL_FRUIT[ctx.month];
+  if (!ctx.reflux) return all;
+  const ok = all.split(', ').filter((f) => !/arance|mandarini|pompelmi|kiwi|ananas|limoni/.test(f));
+  return (ok.length ? ok : ['mele', 'pere', 'banane']).join(', ');
 }

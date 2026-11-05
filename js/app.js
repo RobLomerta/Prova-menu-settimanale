@@ -1,5 +1,5 @@
 import { INGREDIENTS } from './data/ingredients.js';
-import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS } from './engine/diet.js';
+import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS, MENU_TYPES, REFLUX_TIPS } from './engine/diet.js';
 import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, slotName, breakfastStyle, setExtraDay, keepLockedExtras, alternativeExtra, extraHowTo } from './engine/planner.js';
 import { shoppingList, shoppingText, fmtQty } from './engine/shopping.js';
 import { mealPrepPlan } from './engine/mealprep.js';
@@ -127,6 +127,12 @@ const actions = {
     toast('Nuovo menù generato (blocchi rimossi)');
   },
   print: () => window.print(),
+  'menu-type': (el) => {
+    if (state.settings.menuType === el.dataset.type) return;
+    state.settings = { ...state.settings, menuType: el.dataset.type };
+    regenerate();
+    toast(el.dataset.type === 'antibruciore' ? 'Menù anti-bruciore generato' : 'Menù normale generato');
+  },
   'go-piano': () => setTab('piano'),
   swap: (el) => {
     const s = Number(el.dataset.slot);
@@ -276,6 +282,10 @@ function renderSettings() {
         : '<p class="small muted">Collega Claude con la tua chiave API per fare domande su ricette e sostituzioni e per leggere piani in qualsiasi formato.</p><button type="button" class="btn small" data-action="ai-settings">🔑 Collega Claude</button>'}
     </div>
     <label class="field">
+      <span>Tipo di menù</span>
+      <select name="menuType">${Object.entries(MENU_TYPES).map(([k, l]) => opt(k, l, s.menuType)).join('')}</select>
+    </label>
+    <label class="field">
       <span>Regime alimentare</span>
       <select name="regime">${Object.entries(REGIMES).map(([k, r]) => opt(k, r.label, s.regime)).join('')}</select>
     </label>
@@ -327,7 +337,7 @@ function renderSettings() {
   const ex = s.exclude.map((k) => EXCLUSIONS[k].toLowerCase());
   const tags = [
     planOn ? `📄 piano ${t ? `${r0(t.kcal)} kcal` : ''}` : s.kcalTarget ? `${s.kcalTarget} kcal` : null,
-    REGIMES[s.regime].label, s.gluten && 'senza glutine', s.lactose && 'senza lattosio', ex.length && `no ${ex.join(', ')}`,
+    s.menuType === 'antibruciore' && '🌿 anti-bruciore', REGIMES[s.regime].label, s.gluten && 'senza glutine', s.lactose && 'senza lattosio', ex.length && `no ${ex.join(', ')}`,
   ].filter(Boolean);
   $('#settings-summary').textContent = tags.join(' · ');
 }
@@ -338,6 +348,7 @@ function readSettings(form) {
   return {
     ...state.settings,
     regime: fd.get('regime'),
+    menuType: fd.get('menuType') || 'normale',
     portion: fd.get('portion') || state.settings.portion,
     month: Number(fd.get('month')),
     leftovers: Number(fd.get('leftovers')),
@@ -498,7 +509,16 @@ function renderMenu() {
         ${parts}
       </article>`;
   }).join('');
+  const reflux = state.settings.menuType === 'antibruciore';
   el.innerHTML = `
+    <div class="menu-type" role="group" aria-label="Tipo di menù">
+      <button class="btn small ${reflux ? '' : 'active'}" data-action="menu-type" data-type="normale" aria-pressed="${!reflux}">🍽️ Menù normale</button>
+      <button class="btn small ${reflux ? 'active' : ''}" data-action="menu-type" data-type="antibruciore" aria-pressed="${reflux}">🌿 Menù anti-bruciore</button>
+    </div>
+    ${reflux ? `<div class="reflux-note small">
+      <p><strong>🌿 Menù anti-bruciore:</strong> niente pomodoro, agrumi, aglio, cipolla, aceto, piccante e curry; feta sostituita con ricotta. I piatti a base di sugo di pomodoro sono esclusi, negli altri questi ingredienti sono tolti o sostituiti (lo trovi in “Adattata”).</p>
+      <ul>${REFLUX_TIPS.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>
+    </div>` : ''}
     ${ctx.plan ? `<p class="plan-note small">📄 Menù costruito sul tuo piano alimentare: porzioni ricalcolate sulle grammature del piano${target ? `, obiettivo ${r0(target.kcal)} kcal al giorno` : ''}.</p>` : ''}
     <div class="toolbar">
       <p class="muted small">✏️ modifica ingredienti · 🔄 cambia piatto · 🔒 blocca · ♻️ usa l’avanzo della cena · 🍯/🧀 colazione dolce o salata</p>

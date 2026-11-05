@@ -30,7 +30,7 @@ export function buildContext(app) {
   const lines = [];
   lines.push(`Oggi è ${new Date().toLocaleDateString('it-IT', { weekday: 'long', day: 'numeric', month: 'long' })}.`);
   const ex = (settings.exclude || []).map((k) => EXCLUSIONS[k]).join(', ');
-  lines.push(`Preferenze: regime ${REGIMES[settings.regime]?.label}; ${settings.gluten ? 'senza glutine; ' : ''}${settings.lactose ? 'senza lattosio; ' : ''}${ex ? `esclusi: ${ex}; ` : ''}colazione ${settings.breakfastStyle || 'dolce'}; spesa ${settings.twoShops ? 'nel weekend e il mercoledì' : 'una volta nel weekend'}.`);
+  lines.push(`Preferenze: regime ${REGIMES[settings.regime]?.label}; ${settings.menuType === 'antibruciore' ? 'menù anti-bruciore (per reflusso/gastrite: niente pomodoro, agrumi, aglio, cipolla, aceto, piccante, curry, cibi grassi o fritti; suggerisci solo alternative delicate); ' : ''}${settings.gluten ? 'senza glutine; ' : ''}${settings.lactose ? 'senza lattosio; ' : ''}${ex ? `esclusi: ${ex}; ` : ''}colazione ${settings.breakfastStyle || 'dolce'}; spesa ${settings.twoShops ? 'nel weekend e il mercoledì' : 'una volta nel weekend'}.`);
   const t = ctx?.nutritionTarget;
   if (t) lines.push(`Obiettivo giornaliero: ${r0(t.kcal)} kcal${t.p ? `, proteine ${r0(t.p)} g, carboidrati ${r0(t.c)} g, grassi ${r0(t.f)} g` : ''}.`);
   if (dietPlan && settings.usePlan) {

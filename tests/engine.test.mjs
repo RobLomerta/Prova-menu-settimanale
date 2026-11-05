@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { INGREDIENTS } from '../js/data/ingredients.js';
 import { RECIPES, BREAKFASTS } from '../js/data/recipes.js';
 import { PREP_TASKS } from '../js/data/prep.js';
-import { buildContext, REGIMES } from '../js/engine/diet.js';
+import { buildContext, REGIMES, REFLUX } from '../js/engine/diet.js';
 import { generatePlan, replaceSlot, toggleLeftover, evaluate } from '../js/engine/planner.js';
+import { weekView } from '../js/engine/week.js';
 import { shoppingList, shoppingText } from '../js/engine/shopping.js';
 import { mealPrepPlan } from '../js/engine/mealprep.js';
 import { isWorkLunch } from '../js/engine/common.js';
@@ -120,4 +121,37 @@ test('sostituzione, avanzi e meal prep', () => {
     const t = toggleLeftover(res.plan, lunch, ctx);
     assert.ok(t && !t.slots[lunch].lo);
   }
+});
+
+for (const regime of Object.keys(REGIMES)) {
+  for (const month of [1, 7, 11]) {
+    test(`menù anti-bruciore: ${regime}, mese ${month}`, () => {
+      const ctx = buildContext({ regime, month, menuType: 'antibruciore' }, null);
+      const plan = generatePlan(ctx, { seed: 11 });
+      assert.equal(plan.slots.length, 14);
+      const items = weekView(plan, ctx).days.flatMap((d) => d.meals.flatMap((m) => m.ing));
+      const used = new Set([...items.map((x) => x.id), ...plan.slots.flatMap((s) => {
+        const r = ctx.recipes[s.r];
+        return [...r.ing.map((x) => x.id), ...r.pantry];
+      })]);
+      for (const id of Object.keys(REFLUX)) assert.ok(!used.has(id), `${regime}/${month}: contiene ${id}`);
+      const list = shoppingList(plan, ctx);
+      const bought = list.shops.flatMap((sh) => sh.groups.flatMap((g) => g.items.map((x) => x.id))).concat(list.pantry.map((x) => x.id));
+      for (const id of Object.keys(REFLUX)) assert.ok(!bought.includes(id), `${regime}/${month}: in spesa ${id}`);
+      assert.doesNotMatch(list.fruit.suggestions, /arance|mandarini|pompelmi|kiwi/);
+    });
+  }
+}
+
+test('menù anti-bruciore: sostituzioni, nomi e piatti al sugo esclusi', () => {
+  const normal = buildContext({ month: 11 });
+  const ctx = buildContext({ month: 11, menuType: 'antibruciore' });
+  assert.ok(!normal.excluded.has('reflux'));
+  assert.ok(!Object.values(ctx.recipes).some((r) => r.ing.some((x) => x.id === 'pelati')));
+  const caprese = ctx.recipes.farro_caprese;
+  assert.ok(caprese.ing.some((x) => x.id === 'cetrioli'));
+  assert.doesNotMatch(caprese.n, /pomodor/i);
+  assert.match(ctx.recipes.pollo_curry.n, /curcuma/);
+  assert.ok(Object.values(ctx.recipes).every((r) => !/pomodor|arance|limone|curry|feta/i.test(r.n)), 'nomi da aggiornare');
+  assert.ok(Object.keys(ctx.recipes).length >= 45, 'restano abbastanza ricette');
 });

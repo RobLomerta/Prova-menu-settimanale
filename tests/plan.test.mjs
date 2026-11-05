@@ -196,3 +196,14 @@ test('il nome del pasto segue gli ingredienti modificati', async () => {
   assert.match(slotName(plan.slots[0], 0, ctx), /·/);
   assert.match(weekView(plan, ctx).days[0].meals.find((m) => m.slot === 0).name, /·/);
 });
+
+test('menù anti-bruciore con il piano: colazioni e spuntini senza alimenti irritanti', async () => {
+  const { REFLUX } = await import('../js/engine/diet.js');
+  const dp = { ...parsePlanText(text), freq: FREQ };
+  for (const seed of [1, 2, 3, 4, 5]) {
+    const ctx = buildContext({ month: 11, menuType: 'antibruciore' }, dp);
+    const plan = generatePlan(ctx, { seed });
+    const ids = weekView(plan, ctx).days.flatMap((d) => d.meals.flatMap((m) => m.ing.map((x) => x.id)));
+    for (const id of Object.keys(REFLUX)) assert.ok(!ids.includes(id), `seed ${seed}: contiene ${id}`);
+  }
+});

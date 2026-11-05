@@ -56,6 +56,56 @@ export const EXCLUSIONS = {
   shell: 'Crostacei e molluschi',
 };
 
+// Menù anti-bruciore (reflusso, gastrite): alimenti irritanti sostituiti o tolti.
+//   sub  sostituto delicato
+//   drop ingrediente di insaporimento che si può semplicemente omettere;
+//        con un numero, si omette solo fino a quella quantità (oltre, il piatto
+//        dipende da quell'ingrediente e viene escluso dal menù)
+export const MENU_TYPES = {
+  normale: 'Normale',
+  antibruciore: 'Anti-bruciore (reflusso, gastrite)',
+};
+
+export const REFLUX = {
+  pomodorini: { sub: 'cetrioli' },
+  pomodori: { sub: 'zucchine' },
+  pelati: { l: 'pomodoro', drop: 100 },
+  limone: { l: 'limone', drop: true },
+  arance: { sub: 'mela' },
+  mandarini: { sub: 'pera' },
+  kiwi: { sub: 'banana' },
+  ananas: { sub: 'pera' },
+  cipolla: { l: 'cipolla', drop: true },
+  aglio: { l: 'aglio', drop: true },
+  peperoncino: { l: 'peperoncino', drop: true },
+  aceto: { l: 'aceto', drop: true },
+  curry: { sub: 'curcuma' },
+  feta: { sub: 'ricotta' },
+};
+
+// Il nome del piatto segue le sostituzioni
+const REFLUX_NAMES = [
+  [/pomodorini/g, 'cetrioli'],
+  [/, cetrioli e pomodori\b/g, ', cetrioli e zucchine crude'],
+  [/pomodori\b/g, 'zucchine'],
+  [/arance/g, 'mele'],
+  [/feta/g, 'ricotta'],
+  [/al curry/g, 'alla curcuma'],
+  [/ al limone/g, ''],
+  [/, zucchine e limone/g, ' e zucchine'],
+  [/, finocchi e limone/g, ' e finocchi'],
+  [/, tonno e cipolla rossa con pane/g, ' e tonno con pane'],
+  [/ e cipolle/g, ''],
+];
+
+export const REFLUX_TIPS = [
+  'Pasti piccoli e frequenti, mangiando lentamente',
+  'Cena presto e non sdraiarti per 2–3 ore dopo i pasti',
+  'Niente caffè, alcol, bibite gassate, menta e cioccolato',
+  'Cotture semplici (vapore, forno, griglia), niente fritti',
+  'Se i sintomi sono frequenti o forti, parlane con il medico',
+];
+
 export const PORTIONS = { leggera: 0.85, normale: 1, abbondante: 1.2 };
 
 export const DEFAULT_SETTINGS = {
@@ -67,6 +117,7 @@ export const DEFAULT_SETTINGS = {
   kcalTarget: null, // obiettivo calorico manuale (se non c'è un piano)
   usePlan: true, // usa il piano alimentare caricato (se presente)
   twoShops: true,
+  menuType: 'normale', // normale | antibruciore
   breakfast: true,
   breakfastStyle: 'dolce', // dolce | salata | alternata
   leftovers: 2,
@@ -80,6 +131,8 @@ export function resolveIngredient(id, excluded, vegan, depth = 0) {
   const ing = INGREDIENTS[id];
   if (!ing) throw new Error(`Ingrediente sconosciuto: ${id}`);
   if (depth > 3) return null;
+  const rf = excluded.has('reflux') ? REFLUX[id] : null;
+  if (rf) return rf.sub ? resolveIngredient(rf.sub, excluded, vegan, depth + 1) : ''; // '' = da omettere
   const bad = (ing.t || []).filter((t) => excluded.has(t));
   if (!bad.length) return id;
   const sub = ing.sub || {};
@@ -95,25 +148,41 @@ export function resolveIngredient(id, excluded, vegan, depth = 0) {
 export function resolveRecipe(recipe, ctx, { oil = true } = {}) {
   const ing = [];
   const notes = [];
+  const dropped = [];
   const idMap = {};
   for (const [id, q] of Object.entries(recipe.i)) {
     const rid = resolveIngredient(id, ctx.excluded, ctx.vegan);
+    if (rid === '') {
+      const max = REFLUX[id]?.drop;
+      if (max !== true && q > max) return null;
+      dropped.push(REFLUX[id].l);
+      continue;
+    }
     if (!rid) return null;
     idMap[id] = rid;
     if (rid !== id) notes.push(`${INGREDIENTS[id].n} → ${INGREDIENTS[rid].n}`);
-    ing.push({ id: rid, q });
+    const same = ing.find((x) => x.id === rid);
+    if (same) same.q += q;
+    else ing.push({ id: rid, q });
   }
   const pantry = [];
   for (const id of recipe.d || []) {
     const rid = resolveIngredient(id, ctx.excluded, ctx.vegan);
+    if (rid === '') {
+      dropped.push(REFLUX[id].l);
+      continue;
+    }
     if (!rid) return null;
     if (rid !== id) notes.push(`${INGREDIENTS[id].n} → ${INGREDIENTS[rid].n}`);
-    pantry.push(rid);
+    if (!pantry.includes(rid)) pantry.push(rid);
   }
+  if (dropped.length) notes.push(`senza ${[...new Set(dropped)].join(', ')}`);
+  let n = recipe.n;
+  if (ctx.excluded.has('reflux')) for (const [re, to] of REFLUX_NAMES) n = n.replace(re, to);
   if (oil && pantry.includes('olio')) ing.push({ id: 'olio', q: recipe.oil ?? DEFAULT_OIL });
   const fish = ing.some(({ id }) => (INGREDIENTS[id].t || []).includes('fish'));
   const outOfSeason = ing.filter(({ id }) => INGREDIENTS[id].f && !inSeason(INGREDIENTS[id], ctx.month)).map(({ id }) => id);
-  return { ...recipe, ing, pantry, notes, fish, outOfSeason, idMap };
+  return { ...recipe, n, ing, pantry, notes, fish, outOfSeason, idMap };
 }
 
 /** Moltiplica solo carboidrati, proteine e condimento (le verdure restano libere). */
@@ -136,6 +205,7 @@ export function buildContext(settings, dietPlan = null) {
   if (s.lactose) excluded.add('lactose');
   for (const e of s.exclude || []) excluded.add(e);
   if (excluded.has('fish')) excluded.add('shell');
+  if (s.menuType === 'antibruciore') excluded.add('reflux');
 
   const plan = s.usePlan && dietPlan?.meals?.length ? dietPlan : null;
   const analysis = plan ? analyzePlan(plan) : null;
@@ -143,6 +213,7 @@ export function buildContext(settings, dietPlan = null) {
   const ctx = {
     settings: s,
     excluded,
+    reflux: excluded.has('reflux'),
     vegan: s.regime === 'vegana',
     month: s.month,
     plan,
