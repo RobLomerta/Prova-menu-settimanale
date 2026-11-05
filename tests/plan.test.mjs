@@ -196,3 +196,26 @@ test('il nome del pasto segue gli ingredienti modificati', async () => {
   assert.match(slotName(plan.slots[0], 0, ctx), /·/);
   assert.match(weekView(plan, ctx).days[0].meals.find((m) => m.slot === 0).name, /·/);
 });
+
+test('menù anti bruciore di stomaco: niente pomodoro, agrumi, cipolla, aglio, piccante', async () => {
+  const { INGREDIENTS: I } = await import('../js/data/ingredients.js');
+  const BAD = ['pelati', 'pomodori', 'pomodorini', 'arance', 'mandarini', 'limone', 'cipolla', 'aglio', 'peperoncino', 'paprika', 'curry', 'macinato', 'feta', 'peperoni'];
+  for (const dp of [null, { ...parsePlanText(text), freq: FREQ }]) {
+    for (const month of [1, 7]) {
+      const ctx = buildContext({ month, menuType: 'reflusso', breakfastStyle: 'alternata' }, dp);
+      const plan = generatePlan(ctx, { seed: 6, iterations: 1500 });
+      const w = weekView(plan, ctx);
+      for (const d of w.days) for (const m of d.meals) {
+        for (const x of m.ing) assert.ok(!BAD.includes(x.id), `${m.name}: contiene ${x.id}`);
+        assert.doesNotMatch(m.name, /pomodor|aranc|limon|cipoll|peperoncin|curry/i, m.name);
+      }
+      for (const sl of plan.slots) for (const id of ctx.recipes[sl.r].pantry) assert.ok(!BAD.includes(id), `${sl.r}: dispensa ${id}`);
+      const ids = shoppingList(plan, ctx).shops.flatMap((s) => s.groups.flatMap((g) => g.items.map((i) => i.id)));
+      assert.ok(!ids.some((id) => BAD.includes(id)), 'lista della spesa');
+      assert.ok(I);
+    }
+  }
+  // il menù normale resta invariato
+  const normal = buildContext({ month: 7 });
+  assert.ok(normal.recipes.farro_caprese && normal.recipes.pasta_ceci);
+});

@@ -138,6 +138,26 @@ export const RECIPES = [
     tip: 'Salsa in un barattolino a parte; i ceci restano croccanti se aggiunti al momento.',
   },
 
+  {
+    id: 'orzo_lenticchie_carote', n: 'Orzo con lenticchie, carote e sedano',
+    p: 'legumi', m: 'PC', port: 1, batch: 1, b: 'orzo', t: 15, keep: 3,
+    i: { orzo: 70, lenticchie: 60, carote: 100, sedano: 50, prezzemolo: 5 }, d: ['olio', 'sale_pepe', 'rosmarino'],
+    s: 'Salta carote e sedano a cubetti in padella con poca acqua e rosmarino (8 min), unisci orzo e lenticchie già cotti e un filo d’olio a crudo.',
+    tip: 'Si mangia tiepida o a temperatura ambiente: comoda da preparare la sera prima.',
+  },
+  {
+    id: 'pasta_zucca_ricotta', n: 'Pasta integrale con crema di zucca e ricotta',
+    p: 'formaggi', m: 'C', b: 'pasta', t: 25,
+    i: { pasta: 70, zucca: 200, ricotta: 80 }, d: ['olio', 'sale_pepe', 'rosmarino'],
+    s: 'Cuoci la zucca a cubetti al vapore o in padella con poca acqua (12 min), frullala con la ricotta e condisci la pasta.',
+  },
+  {
+    id: 'pasta_zucchine_ricotta', n: 'Pasta integrale con zucchine e ricotta',
+    p: 'formaggi', m: 'C', b: 'pasta', t: 20,
+    i: { pasta: 70, zucchine: 200, ricotta: 80, basilico: 5 }, d: ['olio', 'sale_pepe'],
+    s: 'Cuoci le zucchine a rondelle in padella con un goccio d’acqua, unisci la ricotta e un po’ d’acqua di cottura, condisci la pasta con il basilico.',
+  },
+
   // ===================== PESCE =====================
   {
     id: 'salmone_patate_broccoli', n: 'Salmone al forno con patate e broccoli',
@@ -288,6 +308,21 @@ export const RECIPES = [
     tip: 'Buono anche tiepido o freddo.',
   },
 
+  {
+    id: 'riso_pollo_zucchine', n: 'Insalata di riso con pollo, zucchine e carote',
+    p: 'carne_bianca', m: 'PC', port: 1, batch: 1, b: 'riso', t: 20, keep: 2,
+    i: { riso: 70, pollo: 120, zucchine: 150, carote: 60 }, d: ['olio', 'sale_pepe', 'origano'],
+    mp: [['griglia', 'zucchine']],
+    s: 'Cuoci il pollo alla piastra e taglialo a cubetti; unisci al riso con zucchine grigliate e carote a julienne.',
+    tip: 'Si mangia fredda: prepara la sera prima e condisci al mattino.',
+  },
+  {
+    id: 'tacchino_forno_finocchi', n: 'Tacchino al forno con patate e finocchi',
+    p: 'carne_bianca', m: 'C', b: 'patate', t: 35,
+    i: { tacchino: 150, patate: 200, finocchi: 200 }, d: ['olio', 'sale_pepe', 'rosmarino'],
+    s: 'In teglia patate e finocchi a spicchi con rosmarino per 20 min a 200 °C, aggiungi le fettine di tacchino e cuoci altri 10 min.',
+  },
+
   // ===================== CARNE ROSSA =====================
   {
     id: 'hamburger_patate', n: 'Hamburger di manzo con patate al forno e insalata',
@@ -349,6 +384,14 @@ export const RECIPES = [
     mp: [['griglia', 'zucchine']],
     s: 'Unisci al riso cotto la fesa di tacchino a striscioline, le zucchine grigliate e i pomodorini.',
     tip: 'Si prepara la sera prima; condisci con olio al mattino.',
+  },
+
+  {
+    id: 'merluzzo_cartoccio_carote', n: 'Merluzzo al cartoccio con patate e carote',
+    p: 'pesce', m: 'C', b: 'patate', t: 30,
+    i: { merluzzo: 180, patate: 200, carote: 120, prezzemolo: 5 }, d: ['olio', 'sale_pepe'],
+    s: 'Chiudi il merluzzo in un cartoccio con prezzemolo e un filo d’olio; forno a 190 °C per 15 min insieme a patate e carote a rondelle.',
+    alt: 'frittata_patate',
   },
 
   // ===================== UOVA =====================
@@ -477,6 +520,14 @@ export const RECIPES = [
     i: { quinoa: 70, tofu: 150, carote: 70, cetrioli: 100, sesamo: 5, zenzero: 5 }, d: ['soia', 'olio'],
     s: 'Marina il tofu a cubetti in soia per 15 min e rosolalo. Componi con quinoa, carote e cetrioli a julienne, sesamo.',
     tip: 'Si mangia fredda: perfetta da preparare la sera prima.',
+  },
+  {
+    id: 'tofu_forno_patate_dolci', n: 'Tofu al forno con patate americane e cavolfiore',
+    p: 'vegetale', m: 'PC', port: 1, batch: 1, b: 'patate', t: 35, keep: 3,
+    i: { tofu: 150, patate_dolci: 200, cavolfiore: 200 }, d: ['olio', 'sale_pepe', 'curcuma', 'rosmarino'],
+    mp: [['forno', 'cavolfiore']],
+    s: 'In teglia tofu a cubetti, patate americane e cavolfiore con curcuma e rosmarino: 200 °C per 30 min, girando a metà.',
+    tip: 'Si riscalda bene; ottimo anche tiepido.',
   },
   {
     id: 'tempeh_zucca_cavolo_nero', n: 'Tempeh al forno con zucca e cavolo nero',

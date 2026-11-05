@@ -58,6 +58,35 @@ export const EXCLUSIONS = {
 
 export const PORTIONS = { leggera: 0.85, normale: 1, abbondante: 1.2 };
 
+export const MENU_TYPES = {
+  normale: 'Normale',
+  reflusso: 'Anti bruciore di stomaco (reflusso)',
+};
+
+// Menù anti bruciore di stomaco: alimenti che più spesso lo peggiorano.
+// null = da evitare; 'DROP' = si toglie dalla ricetta; altro id = sostituto.
+// Se l'alimento compare nel nome del piatto (parola chiave), il piatto viene escluso del tutto.
+export const DROP = '__drop';
+const REFLUX = {
+  pelati: null, pomodori: null, pomodorini: null,
+  arance: 'mela', mandarini: null, limone: DROP,
+  cipolla: DROP, aglio: DROP,
+  peperoncino: DROP, paprika: DROP, curry: 'curcuma',
+  macinato: 'tacchino', feta: 'ricotta', peperoni: 'zucchine',
+};
+const REFLUX_KW = {
+  pelati: 'pomodor', pomodori: 'pomodor', pomodorini: 'pomodor', arance: 'aranc', mandarini: 'mandarin',
+  limone: 'limon', cipolla: 'cipoll', aglio: 'agli', peperoncino: 'peperoncin', paprika: 'paprik', curry: 'curry',
+  macinato: 'manzo', feta: 'feta', peperoni: 'peperon',
+};
+export const REFLUX_TIPS = [
+  'Pasti piccoli e regolari; cena leggera, almeno 2-3 ore prima di coricarti.',
+  'Evita fritti, sughi di pomodoro, agrumi, cipolla e aglio, piccante, cioccolato e menta.',
+  'Limita caffè, tè forte, alcol e bevande gassate; preferisci acqua naturale e tisane non alla menta.',
+  'Preferisci cotture al vapore, al forno e al cartoccio; mastica con calma.',
+  'Se i sintomi sono frequenti o forti, parlane con il medico o il nutrizionista.',
+];
+
 export const DEFAULT_SETTINGS = {
   regime: 'mediterranea',
   gluten: false,
@@ -69,6 +98,7 @@ export const DEFAULT_SETTINGS = {
   twoShops: true,
   breakfast: true,
   breakfastStyle: 'dolce', // dolce | salata | alternata
+  menuType: 'normale', // normale | reflusso
   leftovers: 2,
   month: new Date().getMonth() + 1,
 };
@@ -80,6 +110,11 @@ export function resolveIngredient(id, excluded, vegan, depth = 0) {
   const ing = INGREDIENTS[id];
   if (!ing) throw new Error(`Ingrediente sconosciuto: ${id}`);
   if (depth > 3) return null;
+  if (excluded.has('reflux') && id in REFLUX) {
+    const r = REFLUX[id];
+    if (r === null || r === DROP) return r;
+    return resolveIngredient(r, excluded, vegan, depth + 1);
+  }
   const bad = (ing.t || []).filter((t) => excluded.has(t));
   if (!bad.length) return id;
   const sub = ing.sub || {};
@@ -96,17 +131,30 @@ export function resolveRecipe(recipe, ctx, { oil = true } = {}) {
   const ing = [];
   const notes = [];
   const idMap = {};
+  const name = (recipe.n || '').toLowerCase();
+  // menù anti bruciore: un alimento da evitare che dà il nome al piatto esclude il piatto
+  const named = (id) => ctx.excluded.has('reflux') && REFLUX_KW[id] && name.includes(REFLUX_KW[id]);
   for (const [id, q] of Object.entries(recipe.i)) {
+    if (named(id)) return null;
     const rid = resolveIngredient(id, ctx.excluded, ctx.vegan);
     if (!rid) return null;
+    if (rid === DROP) {
+      notes.push(`senza ${INGREDIENTS[id].n.toLowerCase()}`);
+      continue;
+    }
     idMap[id] = rid;
     if (rid !== id) notes.push(`${INGREDIENTS[id].n} → ${INGREDIENTS[rid].n}`);
     ing.push({ id: rid, q });
   }
   const pantry = [];
   for (const id of recipe.d || []) {
+    if (named(id)) return null;
     const rid = resolveIngredient(id, ctx.excluded, ctx.vegan);
     if (!rid) return null;
+    if (rid === DROP) {
+      notes.push(`senza ${INGREDIENTS[id].n.toLowerCase()}`);
+      continue;
+    }
     if (rid !== id) notes.push(`${INGREDIENTS[id].n} → ${INGREDIENTS[rid].n}`);
     pantry.push(rid);
   }
@@ -135,6 +183,7 @@ export function buildContext(settings, dietPlan = null) {
   if (s.gluten) excluded.add('gluten');
   if (s.lactose) excluded.add('lactose');
   for (const e of s.exclude || []) excluded.add(e);
+  if (s.menuType === 'reflusso') excluded.add('reflux');
   if (excluded.has('fish')) excluded.add('shell');
 
   const plan = s.usePlan && dietPlan?.meals?.length ? dietPlan : null;
@@ -201,7 +250,7 @@ export function buildContext(settings, dietPlan = null) {
     const ingBy = plan
       ? { P: scaleToPortions(r.ing, portions.P), C: scaleToPortions(r.ing, portions.C) }
       : { P: scaleMain(r.ing, factor), C: scaleMain(r.ing, factor) };
-    ctx.recipes[r.id] = { ...r, cat, base: r.ing, ingBy, ing: ingBy.C };
+    ctx.recipes[r.id] = { ...r, cat, base: r.ing, ingBy, ing: ingBy.C, fatC: nutrientsOf(ingBy.C).f };
   }
   if (ctx.freeSlot != null) {
     ctx.recipes.libero = { ...FREE_MEAL, cat: 'libero', ing: [], base: [], ingBy: { P: [], C: [] }, pantry: [], notes: [], fish: false, outOfSeason: [], idMap: {} };

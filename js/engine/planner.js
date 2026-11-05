@@ -1,6 +1,6 @@
 import { INGREDIENTS, isPerishable, inSeason } from '../data/ingredients.js';
 import { FRUIT_IDS } from '../data/nutrition.js';
-import { resolveIngredient } from './diet.js';
+import { resolveIngredient, DROP } from './diet.js';
 import { parseLine, qtyFor, MEAL_KEYS } from './plan.js';
 import { nutrientsOf, nutrientsOfItem } from './nutrition.js';
 import { SLOTS, slotDay, slotMeal, isWorkLunch, rng, shopFor } from './common.js';
@@ -157,6 +157,8 @@ export function evaluate(slots, ctx) {
       if (R[slots[s - 1].r].cat === r.cat) parts.varieta += 1.5;
     }
     if (isWorkLunch(s) && r.t > 25 && !r.ahead && !sl.lo) parts.praticita += 1;
+    // menù anti bruciore: cene leggere (i grassi rallentano la digestione)
+    if (meal === 'C' && ctx.excluded.has('reflux') && r.fatC > 18) parts.praticita += (r.fatC - 18) * 0.4;
     parts.stagione += r.outOfSeason.length * 3;
   }
 
@@ -587,7 +589,10 @@ function breakfastName(ing, style) {
 }
 
 function rawChoices(food, ctx, kind) {
-  const ok = (id) => INGREDIENTS[id] && resolveIngredient(id, ctx.excluded, ctx.vegan);
+  const ok = (id) => {
+    const r = INGREDIENTS[id] && resolveIngredient(id, ctx.excluded, ctx.vegan);
+    return r && r !== DROP ? r : null;
+  };
   const seasonal = (ids) => {
     const r = ids.filter((id) => ok(id));
     const s = r.filter((id) => inSeason(INGREDIENTS[id], ctx.month));

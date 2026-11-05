@@ -1,5 +1,5 @@
 import { INGREDIENTS } from './data/ingredients.js';
-import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS } from './engine/diet.js';
+import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS, MENU_TYPES, REFLUX_TIPS } from './engine/diet.js';
 import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, slotName, breakfastStyle, setExtraDay, keepLockedExtras, alternativeExtra, extraHowTo } from './engine/planner.js';
 import { shoppingList, shoppingText, fmtQty } from './engine/shopping.js';
 import { mealPrepPlan } from './engine/mealprep.js';
@@ -294,6 +294,10 @@ function renderSettings() {
       <select name="regime">${Object.entries(REGIMES).map(([k, r]) => opt(k, r.label, s.regime)).join('')}</select>
     </label>
     <label class="field">
+      <span>Tipo di menù</span>
+      <select name="menuType">${Object.entries(MENU_TYPES).map(([k, l]) => opt(k, l, s.menuType || 'normale')).join('')}</select>
+    </label>
+    <label class="field">
       <span>Obiettivo calorico giornaliero</span>
       ${planOn
         ? `<span class="small muted">Dal piano alimentare</span><input type="hidden" name="kcalTarget" value="${s.kcalTarget ?? ''}">`
@@ -341,7 +345,7 @@ function renderSettings() {
   const ex = s.exclude.map((k) => EXCLUSIONS[k].toLowerCase());
   const tags = [
     planOn ? `📄 piano ${t ? `${r0(t.kcal)} kcal` : ''}` : s.kcalTarget ? `${s.kcalTarget} kcal` : null,
-    REGIMES[s.regime].label, s.gluten && 'senza glutine', s.lactose && 'senza lattosio', ex.length && `no ${ex.join(', ')}`,
+    REGIMES[s.regime].label, s.menuType === 'reflusso' && 'anti bruciore di stomaco', s.gluten && 'senza glutine', s.lactose && 'senza lattosio', ex.length && `no ${ex.join(', ')}`,
   ].filter(Boolean);
   $('#settings-summary').textContent = tags.join(' · ');
 }
@@ -361,6 +365,7 @@ function readSettings(form) {
     twoShops: fd.get('twoShops') === '1',
     breakfast: form.breakfast.disabled ? state.settings.breakfast : fd.has('breakfast'),
     breakfastStyle: fd.get('breakfastStyle') || 'dolce',
+    menuType: fd.get('menuType') || 'normale',
     fitPortions: fd.has('fitPortions'),
     kcalTarget: kcal >= 800 ? kcal : null,
     usePlan: form.usePlan ? fd.has('usePlan') : state.settings.usePlan,
@@ -513,6 +518,8 @@ function renderMenu() {
       </article>`;
   }).join('');
   el.innerHTML = `
+    ${ctx.settings.menuType === 'reflusso' ? `<details class="plan-note small reflux-note"><summary>🌿 <strong>Menù anti bruciore di stomaco</strong>: niente pomodoro, agrumi, cipolla, aglio e piccante; cene leggere. Consigli</summary>
+      <ul>${REFLUX_TIPS.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></details>` : ''}
     ${ctx.plan ? `<p class="plan-note small">📄 Menù costruito sul tuo piano alimentare: porzioni ricalcolate sulle grammature del piano${target ? `, obiettivo ${r0(target.kcal)} kcal al giorno` : ''}.</p>` : ''}
     <div class="toolbar">
       <p class="muted small">✏️ modifica ingredienti · 🔄 cambia piatto · 🔒 blocca · ♻️ usa l’avanzo della cena · 🍯/🧀 colazione dolce o salata</p>
