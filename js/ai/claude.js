@@ -5,6 +5,35 @@
 import Anthropic from '../vendor/anthropic/anthropic-sdk.mjs';
 
 export const MODEL = 'claude-opus-5-5';
+
+// Aperta su claude.ai la pagina può usare Claude con l'account di chi la sta guardando
+// (capacità "sample"): niente chiave API. Fuori da claude.ai si usa la chiave personale.
+export const inClaudeApp = typeof window !== 'undefined' && typeof window.claude?.use === 'function';
+let sampleFn = null;
+let sampleLimits = null;
+let accountChecked = !inClaudeApp;
+
+/** Prepara l'accesso a Claude tramite l'account claude.ai (solo dentro claude.ai). */
+export async function initAccount() {
+  if (!inClaudeApp) return null;
+  try {
+    sampleFn = await window.claude.use('sample');
+    sampleLimits = sampleFn ? await sampleFn.limits().catch(() => null) : null;
+  } catch {
+    sampleFn = null;
+  }
+  accountChecked = true;
+  return sampleFn;
+}
+
+/** 'account' (claude.ai), 'key' (chiave API), 'pending' (in verifica) o null (non disponibile). */
+export function claudeMode() {
+  if (sampleFn) return 'account';
+  if (inClaudeApp) return accountChecked ? null : 'pending';
+  return getKey() ? 'key' : null;
+}
+export const claudeReady = () => claudeMode() === 'account' || claudeMode() === 'key';
+export const imageLimit = () => (sampleFn ? sampleLimits?.images?.maxCount || 0 : 20);
 const KEY_STORE = 'menu-settimanale-claude-key';
 
 // Se Claude declina una richiesta, l'API la riprova da sola sul modello di riserva consigliato.
@@ -42,8 +71,25 @@ function client() {
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 }
 
+const SAMPLE_ERRORS = {
+  not_granted: 'Non hai consentito a questa pagina di usare Claude. Puoi cambiarlo dalle autorizzazioni della pagina su claude.ai.',
+  sampling_disabled: 'Claude non è disponibile per questo account.',
+  rate_limited: 'Hai raggiunto il limite di utilizzo di Claude per ora: riprova più tardi.',
+  session_expired: 'La sessione di claude.ai è scaduta: accedi di nuovo e ricarica la pagina.',
+  refused: 'Claude ha preferito non rispondere a questa richiesta. Prova a riformularla.',
+  prompt_too_large: 'Il contenuto è troppo lungo per una sola richiesta: prova con un estratto.',
+  image_rejected: 'Una delle immagini non è stata accettata: prova con un file JPG o PNG più piccolo.',
+  images_unavailable: 'Qui non è possibile inviare immagini a Claude: carica il PDF con il testo oppure incollalo.',
+  invalid_json: 'Claude ha risposto in un formato inatteso. Riprova.',
+  empty_completion: 'Claude non ha prodotto una risposta. Riprova con una richiesta più semplice.',
+  cancelled: 'Richiesta interrotta.',
+};
+
 /** Messaggio d'errore comprensibile per gli errori dell'API. */
 export function explainError(e) {
+  if (e && typeof e === 'object' && 'code' in e && !(e instanceof Error)) {
+    return SAMPLE_ERRORS[e.code] || 'Claude è momentaneamente non disponibile: riprova tra poco.';
+  }
   if (e instanceof Anthropic.AuthenticationError) return 'La chiave API non è valida o è stata revocata. Controllala nella console di Anthropic.';
   if (e instanceof Anthropic.PermissionDeniedError) return 'La chiave non ha i permessi per usare questo modello.';
   if (e instanceof Anthropic.RateLimitError) return 'Troppe richieste in poco tempo, oppure credito esaurito: riprova tra qualche minuto e controlla il credito nella console di Anthropic.';
@@ -149,7 +195,49 @@ function toBase64(buffer) {
  * nel formato usato dall'app.
  * @param input { file?: File, text?: string }
  */
-export async function readPlanWithClaude({ file, text }) {
+function planFromData(data, source) {
+  if (!data || !Array.isArray(data.meals)) throw new Error('Claude ha risposto in un formato inatteso. Riprova.');
+  const t = data.targets || {};
+  const freqFound = !!data.frequencies_found;
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const keys = PLAN_SCHEMA.properties.meals.items.properties.key.enum;
+  return {
+    plan: {
+      version: 1,
+      source,
+      targets: { kcal: num(t.kcal) || null, p: num(t.p) || null, c: num(t.c) || null, f: num(t.f) || null },
+      legumeRule: num(data.legume_rule_grams) || null,
+      freq: freqFound ? Object.fromEntries(FREQ_KEYS.map((k) => [k, Math.max(0, Math.round(num(data.frequencies?.[k])))])) : null,
+      freqFound,
+      freeSlot: 11,
+      meals: data.meals
+        .filter((m) => m && Array.isArray(m.lines) && m.lines.length && keys.includes(m.key))
+        .map((m) => ({ key: m.key, lines: m.lines.map(String) })),
+    },
+    notes: Array.isArray(data.notes) ? data.notes.map(String).slice(0, 5) : [],
+  };
+}
+
+const PLAN_JSON_SHAPE = `Rispondi solo con un oggetto JSON con questa forma (esempio):
+{"meals":[{"key":"pranzo","lines":["70 g riso, pasta / 100 g pane integrale","100 g pesce, carne / 2 uova","10 g olio","verdure libere"]}],
+ "targets":{"kcal":1500,"p":105,"c":185,"f":40},"legume_rule_grams":60,"frequencies_found":true,
+ "frequencies":{"carne_bianca":2,"carne_rossa":1,"pesce_azzurro":2,"pesce_bianco":2,"legumi":2,"uova":1,"formaggi":1,"affettati":1,"vegetale":1,"libero":1},
+ "notes":["..."]}`;
+
+/**
+ * Lettura del piano con l'account claude.ai: testo estratto dal PDF sul dispositivo,
+ * oppure immagini delle pagine (scansioni, foto).
+ */
+async function readPlanWithAccount({ text, images, source }) {
+  const parts = [PLAN_SYSTEM, PLAN_JSON_SHAPE];
+  if (images?.length) parts.push(`Il piano è nelle ${images.length} immagini allegate (pagine del documento, in ordine).`);
+  if (text) parts.push(`Testo del piano:\n<<<\n${text.slice(0, 120000)}\n>>>`);
+  const data = await sampleFn.json(parts.join('\n\n'), { modelTier: 'complex', cache: false, ...(images?.length ? { images } : {}) });
+  return planFromData(data, `${source} (letto da Claude)`);
+}
+
+export async function readPlanWithClaude({ file, text, images, source }) {
+  if (sampleFn) return readPlanWithAccount({ text, images, source: source || file?.name || 'testo incollato' });
   const content = [];
   if (file) {
     const type = file.type || (/\.pdf$/i.test(file.name) ? 'application/pdf' : '');
@@ -180,21 +268,7 @@ export async function readPlanWithClaude({ file, text }) {
   } catch {
     throw new Error('Claude ha risposto in un formato inatteso. Riprova.');
   }
-  const t = data.targets || {};
-  const freqFound = !!data.frequencies_found;
-  return {
-    plan: {
-      version: 1,
-      source: file ? `${file.name} (letto da Claude)` : 'testo incollato (letto da Claude)',
-      targets: { kcal: t.kcal || null, p: t.p || null, c: t.c || null, f: t.f || null },
-      legumeRule: data.legume_rule_grams || null,
-      freq: freqFound ? Object.fromEntries(FREQ_KEYS.map((k) => [k, Math.max(0, Math.round(data.frequencies[k] || 0))])) : null,
-      freqFound,
-      freeSlot: 11,
-      meals: data.meals.filter((m) => m.lines.length).map((m) => ({ key: m.key, lines: m.lines })),
-    },
-    notes: data.notes || [],
-  };
+  return planFromData(data, file ? `${file.name} (letto da Claude)` : 'testo incollato (letto da Claude)');
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +290,15 @@ L'app non applica da sola le tue proposte: chi la usa può riportarle nel Labora
  * @returns { text, content } della risposta completa
  */
 export async function chat({ history, context, onText, signal }) {
+  if (sampleFn) {
+    // con l'account claude.ai le istruzioni vanno in un primo turno "user" che resta sempre
+    const turns = [
+      { role: 'user', content: `${CHAT_SYSTEM}\n\nContesto attuale dell'app:\n${context}\n\nRispondi alle domande che seguono.` },
+      ...history.slice(-20).map((h) => ({ role: h.role, content: h.text })),
+    ];
+    const res = await sampleFn(turns, { cache: false, signal, onText: ({ text }) => onText?.(text) });
+    return { text: res.text, content: res.text, truncated: res.truncated };
+  }
   const stream = client().beta.messages.stream(
     {
       ...FALLBACK,
@@ -226,7 +309,7 @@ export async function chat({ history, context, onText, signal }) {
         { type: 'text', text: CHAT_SYSTEM, cache_control: { type: 'ephemeral' } },
         { type: 'text', text: `Contesto attuale dell'app:\n${context}` },
       ],
-      messages: history,
+      messages: history.map(({ role, content }) => ({ role, content })),
     },
     { signal },
   );

@@ -5,7 +5,8 @@ import { weekView } from '../engine/week.js';
 import { DAYS } from '../engine/common.js';
 import { fmtQty } from '../engine/shopping.js';
 import { $, esc, r0 } from './util.js';
-import { hasKey, setKey, clearKey, testKey, chat, explainError, MODEL } from '../ai/claude.js';
+import { hasKey, setKey, clearKey, testKey, chat, explainError, MODEL, claudeMode, inClaudeApp } from '../ai/claude.js';
+import { askConfirm } from './dialog.js';
 
 const SUGGESTIONS = [
   'Cosa posso cucinare stasera con quello che c’è nel menù di oggi?',
@@ -113,6 +114,7 @@ function chatView() {
         <div class="ai-sugg">${SUGGESTIONS.map((s) => `<button class="chip-btn" data-action="ai-suggest">${esc(s)}</button>`).join('')}</div>`}
       ${st.busy && !st.view.at(-1)?.text ? '<p class="small muted">✍️ Claude sta scrivendo…</p>' : ''}
       ${st.error ? `<div class="alert">${esc(st.error)}</div>` : ''}
+      ${claudeMode() === 'account' && !st.view.length ? '<p class="small muted">Claude usa il tuo account claude.ai: alla prima domanda ti chiederà il permesso. Le risposte contano sui limiti del tuo piano.</p>' : ''}
     </div>
     <form class="ai-input" id="ai-form">
       <textarea id="ai-text" rows="2" placeholder="Scrivi una domanda…" ${st.busy ? 'disabled' : ''}></textarea>
@@ -123,6 +125,8 @@ function chatView() {
 }
 
 export function renderAssistant() {
+  const mode = claudeMode();
+  const ready = mode === 'account' || mode === 'key';
   let root = $('#ai-root');
   if (!root) {
     root = document.createElement('div');
@@ -135,12 +139,15 @@ export function renderAssistant() {
       <header class="ai-head">
         <strong>💬 Chiedi a Claude</strong>
         <span class="ai-head-tools">
-          ${hasKey() && st.view.length ? '<button class="icon-btn" data-action="ai-new" title="Nuova conversazione">🗒️</button>' : ''}
-          ${hasKey() ? '<button class="icon-btn" data-action="ai-remove-key" title="Rimuovi la chiave da questo browser">🔑</button>' : ''}
+          ${ready && st.view.length ? '<button class="icon-btn" data-action="ai-new" title="Nuova conversazione">🗒️</button>' : ''}
+          ${mode === 'key' ? '<button class="icon-btn" data-action="ai-remove-key" title="Rimuovi la chiave da questo browser">🔑</button>' : ''}
           <button class="icon-btn" data-action="ai-close" title="Chiudi">✖</button>
         </span>
       </header>
-      <div class="ai-body">${hasKey() ? chatView() : keyForm()}</div>
+      <div class="ai-body">${ready ? chatView()
+        : mode === 'pending' ? '<p class="ai-setup small muted">⏳ Collegamento a Claude…</p>'
+        : inClaudeApp ? '<div class="ai-setup"><p>Claude non è disponibile in questa vista.</p><p class="small muted">Apri la pagina da claude.ai con il tuo account (anche dal browser del telefono) per usare Claude.</p></div>'
+        : keyForm()}</div>
     </aside>`;
   const box = $('#ai-msgs');
   if (box) box.scrollTop = box.scrollHeight;
@@ -159,7 +166,7 @@ async function send(app, text) {
   const q = text.trim();
   if (!q || st.busy) return;
   st.error = '';
-  st.history.push({ role: 'user', content: q });
+  st.history.push({ role: 'user', content: q, text: q });
   st.view.push({ role: 'user', text: q }, { role: 'assistant', text: '' });
   st.busy = true;
   st.abort = new AbortController();
@@ -174,12 +181,13 @@ async function send(app, text) {
         updateLastMessage();
       },
     });
-    st.history.push({ role: 'assistant', content: res.content });
-    st.view.at(-1).text = res.text;
+    st.history.push({ role: 'assistant', content: res.content, text: res.text });
+    st.view.at(-1).text = res.text + (res.truncated ? '\n\n*(Risposta interrotta perché troppo lunga.)*' : '');
   } catch (e) {
     // la domanda senza risposta esce dalla cronologia, così si può riprovare
     st.history.pop();
     if (!st.view.at(-1).text) st.view.pop();
+    if (e?.text && !st.view.at(-1)?.text) st.view.push({ role: 'assistant', text: e.text });
     st.error = st.abort?.signal.aborted ? 'Risposta interrotta.' : explainError(e);
   } finally {
     st.busy = false;
@@ -224,8 +232,8 @@ export const assistantActions = (app) => ({
     }
     renderAssistant();
   },
-  'ai-remove-key': () => {
-    if (!confirm('Rimuovere la chiave API di Claude da questo browser?')) return;
+  'ai-remove-key': async () => {
+    if (!(await askConfirm('Rimuovere la chiave API di Claude da questo browser?', { ok: 'Rimuovi chiave' }))) return;
     clearKey();
     st.history = [];
     st.view = [];

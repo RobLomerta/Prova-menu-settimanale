@@ -1,0 +1,44 @@
+<title>Menù settimanale</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="css/style.css">
+<header class="topbar">
+    <div class="wrap topbar-inner">
+      <h1>🥗 Menù settimanale</h1>
+      <div class="topbar-actions">
+        <button class="btn primary" data-action="generate">Nuovo menù</button>
+        <button class="btn ghost" data-action="print" title="Stampa">🖨️</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <details class="panel settings" id="settings">
+      <summary><span>⚙️ Regime e preferenze</span><span class="summary-hint" id="settings-summary"></span></summary>
+      <form id="settings-form" class="settings-grid"></form>
+    </details>
+
+    <div id="error" class="alert" hidden></div>
+
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="menu" class="active">📅 Menù</button>
+      <button role="tab" data-tab="spesa">🛒 Spesa</button>
+      <button role="tab" data-tab="prep">🍱 Meal prep</button>
+      <button role="tab" data-tab="lab">🧪 Laboratorio</button>
+      <button role="tab" data-tab="stats">📊 Nutrienti</button>
+      <button role="tab" data-tab="piano">📄 Piano</button>
+    </nav>
+
+    <section id="tab-menu" class="tab-panel"></section>
+    <section id="tab-spesa" class="tab-panel" hidden></section>
+    <section id="tab-prep" class="tab-panel" hidden></section>
+    <section id="tab-lab" class="tab-panel" hidden></section>
+    <section id="tab-stats" class="tab-panel" hidden></section>
+    <section id="tab-piano" class="tab-panel" hidden></section>
+  </main>
+
+  <footer class="wrap footer">
+    Quantità per una persona e valori nutrizionali indicativi (tabelle CREA/USDA). Il menù non sostituisce il parere del tuo nutrizionista: per dubbi o esigenze cliniche rivolgiti a lui/lei.
+  </footer>
+
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="js/app.js"></script>

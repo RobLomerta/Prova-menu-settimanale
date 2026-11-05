@@ -2,7 +2,8 @@
 import { parsePlanText, pdfToText, analyzePlan, emptyPlan, describeOption, MEAL_KEYS, MEAL_ORDER, FREQ_LABELS } from '../engine/plan.js';
 import { DAYS } from '../engine/common.js';
 import { $, esc, r0, macroLine } from './util.js';
-import { hasKey, readPlanWithClaude, explainError } from '../ai/claude.js';
+import { readPlanWithClaude, explainError, claudeReady, claudeMode, imageLimit } from '../ai/claude.js';
+import { askConfirm } from './dialog.js';
 
 // pdf.js (Mozilla, licenza Apache 2.0) incluso nel progetto: funziona offline e il file non lascia il dispositivo
 const PDFJS = new URL('../vendor/pdfjs/pdf.min.js', import.meta.url).href;
@@ -53,13 +54,55 @@ function importText(app, text, source) {
 }
 
 /** Usa Claude per leggere il piano? (scelta dell'utente, attiva di default se c'è la chiave) */
-const useClaude = (app) => hasKey() && app.state.settings.planWithClaude !== false;
+const useClaude = (app) => claudeReady() && app.state.settings.planWithClaude !== false;
+const hasKey = claudeReady; // Claude disponibile (account claude.ai o chiave API)
+
+/** Pagine di un PDF come immagini PNG (per le scansioni, con l'account claude.ai). */
+async function pdfPagesAsImages(lib, data, max) {
+  const doc = await lib.getDocument({ data }).promise;
+  const out = [];
+  for (let p = 1; p <= Math.min(doc.numPages, max); p++) {
+    const page = await doc.getPage(p);
+    const vp = page.getViewport({ scale: 1.6 });
+    const canvas = document.createElement('canvas');
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+    out.push(await new Promise((res) => canvas.toBlob(res, 'image/png')));
+  }
+  return { images: out.filter(Boolean), total: doc.numPages };
+}
+
+/** Con l'account claude.ai si inviano testo o immagini: il PDF si prepara qui sul dispositivo. */
+async function prepareForAccount(file) {
+  const isPdf = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  if (isPdf) {
+    const lib = await loadPdfJs();
+    const data = new Uint8Array(await file.arrayBuffer());
+    const text = await pdfToText(lib, data.slice());
+    if (text.replace(/\s/g, '').length >= 200) return { text };
+    const max = imageLimit();
+    if (!max) throw new Error('Il PDF è una scansione e qui non si possono inviare immagini a Claude: incolla il testo del piano.');
+    return pdfPagesAsImages(lib, data, max);
+  }
+  if (/^image\//.test(file.type) || /\.(jpe?g|png|webp|gif)$/i.test(file.name)) {
+    if (!imageLimit()) throw new Error('Qui non si possono inviare immagini a Claude: carica il PDF o incolla il testo.');
+    return { images: [file] };
+  }
+  return { text: await file.text() };
+}
 
 async function importWithClaude(app, input, source) {
   app.state.planImport = { busy: `Claude sta leggendo “${source}”… (può richiedere fino a un minuto)` };
   app.rerender();
   try {
-    const { plan, notes } = await readPlanWithClaude(input);
+    let req = input;
+    if (claudeMode() === 'account' && input.file) {
+      const prep = await prepareForAccount(input.file);
+      req = { ...prep, source };
+      if (prep.total > (prep.images?.length || 0)) app.state.planImport = { busy: `Claude sta leggendo le prime ${prep.images.length} pagine su ${prep.total}…` };
+    }
+    const { plan, notes } = await readPlanWithClaude(req);
     if (!plan.meals.length) throw new Error('Claude non ha trovato pasti in questo documento.');
     plan.importedAt = new Date().toISOString();
     if (!plan.freq) plan.freq = { ...DEFAULT_FREQ };
@@ -114,8 +157,8 @@ export const planActions = (app) => ({
     app.save();
     app.rerender();
   },
-  'plan-remove': () => {
-    if (!confirm('Rimuovere il piano alimentare? Il menù tornerà a usare regime e porzioni standard.')) return;
+  'plan-remove': async () => {
+    if (!(await askConfirm('Rimuovere il piano alimentare? Il menù tornerà a usare regime e porzioni standard.', { ok: 'Rimuovi piano' }))) return;
     app.state.dietPlan = null;
     app.state.planImport = null;
     app.save();

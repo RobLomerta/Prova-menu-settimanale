@@ -42,6 +42,12 @@ python3 -m http.server 8080     # oppure: npm start
 
 Per usarla dal telefono si può pubblicare gratis con **GitHub Pages** (Settings → Pages → branch) e poi "Aggiungi a schermata Home".
 
+## Versione su claude.ai
+
+La stessa app è pubblicata anche come pagina su claude.ai: lì Claude usa **l'account claude.ai di chi la apre**, senza chiave API e senza costi a consumo (contano i limiti del proprio piano). Serve un account Claude e la connessione; non funziona offline e la stampa non è disponibile. I dati restano nel browser, separati da quelli della versione GitHub.
+
+Per aggiornarla dopo una modifica: `npm run build:artifact` rigenera `artifact.html` (dal contenuto di `index.html`) e l'elenco `artifact-files.json` dei file da pubblicare.
+
 ## Test
 
 ```bash

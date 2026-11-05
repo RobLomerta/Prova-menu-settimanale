@@ -10,7 +10,11 @@ import { renderPiano, planActions, handlePlanChange, handlePlanFile } from './ui
 import { renderLab, labActions, handleLabInput, handleLabChange } from './ui/lab.js';
 import { renderStats } from './ui/stats.js';
 import { installAssistant, assistantActions, renderAssistant } from './ui/assistant.js';
-import { hasKey } from './ai/claude.js';
+import { claudeMode, inClaudeApp, initAccount } from './ai/claude.js';
+
+// Su claude.ai la pagina gira in un riquadro con alcune funzioni del browser non disponibili
+if (inClaudeApp) document.documentElement.dataset.host = 'claude';
+import { askConfirm, showCopyText } from './ui/dialog.js';
 
 const STORE_KEY = 'menu-settimanale-v2';
 const OLD_KEY = 'menu-settimanale-v1';
@@ -184,19 +188,25 @@ const actions = {
   },
   copy: async () => {
     const text = shoppingText(shoppingList(state.plan, state.ctx), state.checked);
-    try {
-      if (navigator.share && matchMedia('(pointer: coarse)').matches) await navigator.share({ title: 'Lista della spesa', text });
-      else {
-        await navigator.clipboard.writeText(text);
-        toast('Lista copiata negli appunti');
+    // condivisione di sistema sul telefono (dove disponibile), altrimenti appunti, altrimenti testo da copiare
+    if (navigator.share && matchMedia('(pointer: coarse)').matches && !document.documentElement.dataset.host) {
+      try {
+        await navigator.share({ title: 'Lista della spesa', text });
+        return;
+      } catch (e) {
+        if (e?.name === 'AbortError') return;
       }
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('Lista copiata negli appunti');
     } catch {
-      /* condivisione annullata */
+      showCopyText('Lista della spesa', text);
     }
   },
-  'bf-toggle': (el) => {
+  'bf-toggle': async (el) => {
     const day = Number(el.dataset.day);
-    if (state.plan.extraDay?.colazione?.[day]?.custom && !confirm('Questa colazione è stata modificata a mano: cambiando stile verrà sostituita con una nuova proposta. Continuare?')) return;
+    if (state.plan.extraDay?.colazione?.[day]?.custom && !(await askConfirm('Questa colazione è stata modificata a mano: cambiando stile verrà sostituita con una nuova proposta.', { ok: 'Cambia stile' }))) return;
     const cur = breakfastStyle(state.plan, state.ctx, day);
     state.plan.bfStyle ??= Array(7).fill(null);
     const next = cur === 'dolce' ? 'salata' : 'dolce';
@@ -271,9 +281,13 @@ function renderSettings() {
     </div>
     <div class="field plan-box">
       <span>🤖 Claude (facoltativo)</span>
-      ${hasKey()
-        ? '<p class="small">✅ Collegato con la tua chiave API: puoi fare domande con “💬 Chiedi a Claude” e leggere qualsiasi piano alimentare, anche foto e scansioni.</p><button type="button" class="btn small" data-action="ai-settings">💬 Apri Claude</button>'
-        : '<p class="small muted">Collega Claude con la tua chiave API per fare domande su ricette e sostituzioni e per leggere piani in qualsiasi formato.</p><button type="button" class="btn small" data-action="ai-settings">🔑 Collega Claude</button>'}
+      ${claudeMode() === 'account'
+        ? '<p class="small">✅ Collegato con il tuo account claude.ai: puoi fare domande con “💬 Chiedi a Claude” e leggere qualsiasi piano alimentare, anche foto e scansioni.</p><button type="button" class="btn small" data-action="ai-settings">💬 Apri Claude</button>'
+        : claudeMode() === 'key'
+          ? '<p class="small">✅ Collegato con la tua chiave API: puoi fare domande con “💬 Chiedi a Claude” e leggere qualsiasi piano alimentare, anche foto e scansioni.</p><button type="button" class="btn small" data-action="ai-settings">💬 Apri Claude</button>'
+          : inClaudeApp
+            ? '<p class="small muted">Claude usa il tuo account claude.ai: aprilo con “💬 Chiedi a Claude”.</p><button type="button" class="btn small" data-action="ai-settings">💬 Apri Claude</button>'
+            : '<p class="small muted">Collega Claude con la tua chiave API per fare domande su ricette e sostituzioni e per leggere piani in qualsiasi formato.</p><button type="button" class="btn small" data-action="ai-settings">🔑 Collega Claude</button>'}
     </div>
     <label class="field">
       <span>Regime alimentare</span>
@@ -648,6 +662,8 @@ function init() {
   } catch { /* ignora */ }
   installTooltip();
   installAssistant(app);
+  // su claude.ai Claude arriva poco dopo il caricamento: quando è pronto aggiorno la pagina
+  if (inClaudeApp) initAccount().then(() => { render(); renderAssistant(); });
 
   // I pulsanti d'azione ricevono il focus senza far scorrere la pagina
   // (evita che il click "scivoli" su un altro elemento mentre la pagina si sposta).
@@ -687,7 +703,7 @@ function init() {
     toast('Preferenze applicate');
   });
 
-  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !document.documentElement.dataset.host) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
