@@ -6,7 +6,7 @@ Web app che, dato un regime alimentare, costruisce il **menù della settimana** 
 
 | Obiettivo | Come lo affronta |
 |---|---|
-| **Varietà** | 61 ricette; nessun piatto ripetuto (salvo gli avanzi voluti); fonti proteiche bilanciate sulla settimana secondo il regime (es. mediterranea: 4 legumi, 3 pesce, 2 carne bianca, 1 rossa, 2 uova, 2 formaggi); stessa proteina o stessa base (pasta, riso…) mai a pranzo e cena dello stesso giorno. |
+| **Varietà** | 96 ricette (più quelle che salvi tu); nessun piatto ripetuto (salvo gli avanzi voluti); fonti proteiche bilanciate sulla settimana secondo il regime (es. mediterranea: 4 legumi, 3 pesce, 2 carne bianca, 1 rossa, 2 uova, 2 formaggi); stessa proteina o stessa base (pasta, riso…) mai a pranzo e cena dello stesso giorno. |
 | **Pranzi pratici lun-ven** | Nei giorni lavorativi il pranzo è sempre un piatto da portare (🎒): insalate di cereali, bowl, piadine, frittate, piatti che si riscaldano. Ogni ricetta ha un consiglio per la schiscetta. |
 | **Meal prep** | Sessione della domenica e mini sessione del mercoledì: cereali e legumi da cuocere (con quantità totali a crudo e cotte), verdure da arrostire o grigliare, insalata da lavare, sughi, hummus, piatti da cucinare interi. Più un promemoria serale "prepara la schiscetta di domani". Opzione **cene doppie**: la seconda porzione diventa il pranzo del giorno dopo. |
 | **Spesa per 1 persona** | L'ottimizzatore tiene conto delle confezioni reali (mozzarella 125 g, rucola 100 g, cavolfiore intero…) e preferisce ricette che finiscano le confezioni aperte. La lista indica quante confezioni comprare, quanto ne serve e gli eventuali avanzi deperibili con un'idea per usarli. |
