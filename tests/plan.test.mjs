@@ -179,3 +179,20 @@ test('meal prep: tiene conto delle modifiche e di colazioni e spuntini', async (
   const uses = mp.sessions.flatMap((x) => x.tasks).flatMap((t) => t.items).flatMap((i) => i.uses);
   assert.ok(uses.includes('Mar colazione'), 'i ceci della colazione entrano nel meal prep');
 });
+
+test('il nome del pasto segue gli ingredienti modificati', async () => {
+  const { setExtraDay, slotName, variantName } = await import('../js/engine/planner.js');
+  const dp = { ...parsePlanText(text), freq: FREQ };
+  const ctx = buildContext({ month: 11, breakfastStyle: 'dolce' }, dp);
+  const plan = generatePlan(ctx, { seed: 3 });
+  setExtraDay(plan, 'colazione', 0, { custom: [{ id: 'pane', q: 50 }, { id: 'mela', q: 100 }, { id: 'fesa_affettata', q: 100 }] });
+  const bf = extraEntries(plan, ctx).find((e) => e.key === 'colazione' && e.day === 0);
+  assert.equal(bf.style, 'salata');
+  assert.match(bf.name, /fesa di tacchino/i);
+  assert.doesNotMatch(bf.name, /fette biscottate|banan/i);
+  assert.equal(variantName('Pollo al curry', [{ id: 'pollo', q: 100 }, { id: 'riso', q: 60 }], [{ id: 'tonno', q: 80 }, { id: 'riso', q: 60 }]), 'Pollo al curry · con tonno al posto di pollo');
+  assert.equal(variantName('Pollo al curry', [{ id: 'pollo', q: 100 }, { id: 'riso', q: 60 }], [{ id: 'pollo', q: 150 }, { id: 'riso', q: 60 }]), 'Pollo al curry');
+  plan.slots[0].custom = { r: plan.slots[0].r, ing: [{ id: 'quinoa', q: 70 }] };
+  assert.match(slotName(plan.slots[0], 0, ctx), /·/);
+  assert.match(weekView(plan, ctx).days[0].meals.find((m) => m.slot === 0).name, /·/);
+});

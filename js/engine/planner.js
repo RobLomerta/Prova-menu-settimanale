@@ -380,7 +380,15 @@ export function extraEntries(plan, ctx) {
       const combo = ov.combo || c;
       const ing = ov.custom || combo.ing;
       out.push({
-        key: ex.key, label: ex.label, name: combo.n, ing, orig: combo.ing, style: combo.style || null,
+        ...(() => {
+          if (!ov.custom) return { name: combo.n, style: combo.style || null };
+          // modificata a mano: nome e stile ricavati dagli ingredienti effettivi
+          if (ex.key !== 'colazione') return { name: snackName(ing), style: null };
+          const st = ing.some((x) => SAVORY_FOODS.includes(x.id)) ? 'salata'
+            : ing.some((x) => SWEET_FOODS.includes(x.id)) ? 'dolce' : combo.style || breakfastStyle(plan, ctx, day);
+          return { name: breakfastName(ing, st), style: st };
+        })(),
+        key: ex.key, label: ex.label, ing, orig: combo.ing,
         locked: !!ov.locked, custom: !!ov.custom, swappable: ex.swappable !== false,
         r: { n: combo.n, ing, pantry: combo.pantry || [] }, day, meal: 'B',
       });
@@ -502,6 +510,54 @@ function concreteChoices(food, ctx, kind) {
 }
 
 const low = (id) => INGREDIENTS[id].n.replace(/ \(.*\)$/, '').toLowerCase();
+
+function listIt(xs) {
+  return xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs.at(-1)}`;
+}
+
+/** Nome di uno spuntino dagli ingredienti. */
+function snackName(ing) {
+  const n = listIt(ing.map((x) => low(x.id)));
+  return n ? n[0].toUpperCase() + n.slice(1) : 'Spuntino';
+}
+
+/**
+ * Nome di un pranzo/cena modificato a mano: il nome della ricetta più la variante
+ * (sostituzioni, aggiunte, ingredienti tolti), considerando gli ingredienti principali.
+ */
+export function variantName(baseName, origItems, items) {
+  const short = (id) => low(id).replace(/ (secchi|secche|sgusciate|al naturale|decorticate|perlato|freschi|fresco)\b/g, '').replace(/^petto di /, '');
+  const roleOf = (id) => INGREDIENTS[id].ro;
+  const isMain = (x) => ['carb', 'prot'].includes(roleOf(x.id)) || (roleOf(x.id) === 'veg' && x.q >= 80);
+  const origIds = new Set(origItems.map((x) => x.id));
+  const nowIds = new Set(items.map((x) => x.id));
+  const removed = origItems.filter((x) => isMain(x) && !nowIds.has(x.id)).map((x) => x.id);
+  const added = items.filter((x) => isMain(x) && !origIds.has(x.id)).map((x) => x.id);
+  if (!removed.length && !added.length) return baseName;
+  const parts = [];
+  const restAdd = [];
+  const restRem = [];
+  for (const role of ['prot', 'carb', 'veg']) {
+    const a = added.filter((id) => roleOf(id) === role);
+    const r = removed.filter((id) => roleOf(id) === role);
+    if (a.length && r.length) parts.push(`con ${listIt(a.map(short))} al posto di ${listIt(r.map(short))}`);
+    else {
+      restAdd.push(...a);
+      restRem.push(...r);
+    }
+  }
+  if (restAdd.length) parts.push(`con aggiunta di ${listIt(restAdd.map(short))}`);
+  if (restRem.length) parts.push(`senza ${listIt(restRem.map(short))}`);
+  return `${baseName} · ${parts.join(', ')}`;
+}
+
+/** Nome da mostrare per uno slot (tiene conto delle modifiche manuali). */
+export function slotName(sl, s, ctx) {
+  const id = shownId(sl);
+  const r = ctx.recipes[id];
+  if (!(sl.custom && sl.custom.r === id)) return r.n;
+  return variantName(r.n, slotIngredients({ ...sl, custom: null }, s, ctx), sl.custom.ing);
+}
 
 /** Nome leggibile di una colazione costruita dalle righe del piano. */
 function breakfastName(ing, style) {

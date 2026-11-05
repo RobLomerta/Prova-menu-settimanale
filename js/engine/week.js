@@ -1,5 +1,5 @@
 import { slotMeal } from './common.js';
-import { slotIngredients, shownId, extraEntries } from './planner.js';
+import { slotIngredients, shownId, extraEntries, slotName } from './planner.js';
 import { nutrientsOf, addN, ZERO } from './nutrition.js';
 import { INGREDIENTS } from '../data/ingredients.js';
 
@@ -22,7 +22,7 @@ export function weekView(plan, ctx) {
     const ing = slotIngredients(sl, s, ctx);
     const free = r.id === 'libero';
     const n = free ? { ...ZERO } : countedNutrients(ing, ctx);
-    days[day].meals.push({ key: slotMeal(s), label: slotMeal(s) === 'P' ? 'Pranzo' : 'Cena', name: r.n, ing, n, slot: s, free, custom: !!(sl.custom && sl.custom.r === r.id) });
+    days[day].meals.push({ key: slotMeal(s), label: slotMeal(s) === 'P' ? 'Pranzo' : 'Cena', name: free ? r.n : slotName(sl, s, ctx), ing, n, slot: s, free, custom: !!(sl.custom && sl.custom.r === r.id) });
     if (free) days[day].free = true;
   });
   for (const e of extraEntries(plan, ctx)) {

@@ -2,7 +2,7 @@ import { INGREDIENTS } from '../data/ingredients.js';
 import { PREP_TASKS } from '../data/prep.js';
 import { DAYS, DAYS_SHORT, slotDay, slotMeal, slotLabel, isWorkLunch } from './common.js';
 import { fmtQty } from './shopping.js';
-import { slotIngredients, shownId, extraEntries } from './planner.js';
+import { slotIngredients, shownId, extraEntries, slotName } from './planner.js';
 
 const SESSIONS = [
   { key: 'dom', title: 'Domenica', subtitle: 'Sessione principale · circa 1 h 30', start: -1 },
@@ -65,7 +65,7 @@ export function mealPrepPlan(plan, ctx) {
         .filter((x) => ['carb', 'prot', 'veg'].includes(INGREDIENTS[x.id].ro))
         .map((x) => `${INGREDIENTS[x.id].n.replace(/ \(.*\)$/, '').toLowerCase()} ${fmtQty(x.q * double, INGREDIENTS[x.id].u)}`);
       const custom = !!(sl.custom && sl.custom.r === r.id);
-      if (ses) dishes[ses].push({ name: r.n, use, portions: double, keep: r.keep, fz: r.fz, items: main.join(', '), custom });
+      if (ses) dishes[ses].push({ name: slotName(sl, s, ctx), use, portions: double, keep: r.keep, fz: r.fz, items: main.join(', '), custom });
     }
   });
 
@@ -122,7 +122,7 @@ export function mealPrepPlan(plan, ctx) {
     evenings.push({
       when: d === 0 ? 'Domenica sera' : `${DAYS[d - 1]} sera`,
       forDay: DAYS[d],
-      name: r.n,
+      name: slotName(sl, s, ctx),
       leftover: sl.lo,
       tip: sl.lo ? 'Cucina doppia porzione a cena e metti subito da parte la seconda nel contenitore.' : r.tip,
     });

@@ -1,6 +1,6 @@
 import { INGREDIENTS } from './data/ingredients.js';
 import { buildContext, REGIMES, EXCLUSIONS, PROTEINS, DEFAULT_SETTINGS } from './engine/diet.js';
-import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, breakfastStyle, setExtraDay, keepLockedExtras, alternativeExtra, extraHowTo } from './engine/planner.js';
+import { generatePlan, replaceSlot, toggleLeftover, canBecomeLeftover, buildExtras, fitPlan, shownId, slotIngredients, slotName, breakfastStyle, setExtraDay, keepLockedExtras, alternativeExtra, extraHowTo } from './engine/planner.js';
 import { shoppingList, shoppingText, fmtQty } from './engine/shopping.js';
 import { mealPrepPlan } from './engine/mealprep.js';
 import { weekView } from './engine/week.js';
@@ -194,6 +194,7 @@ const actions = {
   },
   'bf-toggle': (el) => {
     const day = Number(el.dataset.day);
+    if (state.plan.extraDay?.colazione?.[day]?.custom && !confirm('Questa colazione è stata modificata a mano: cambiando stile verrà sostituita con una nuova proposta. Continuare?')) return;
     const cur = breakfastStyle(state.plan, state.ctx, day);
     state.plan.bfStyle ??= Array(7).fill(null);
     const next = cur === 'dolce' ? 'salata' : 'dolce';
@@ -425,7 +426,7 @@ function mealBlock(s, nut) {
           <button class="icon-btn" data-action="lock" data-slot="${s}" title="${sl.locked ? 'Sblocca' : 'Blocca: resta anche rigenerando'}">${sl.locked ? '🔒' : '🔓'}</button>
         </span>
       </div>
-      <h4>${esc(shown.n)} ${proteinBadge(shown.cat)}</h4>
+      <h4>${esc(slotName(sl, s, ctx))} ${proteinBadge(shown.cat)}</h4>
       <p class="macro small">${macroLine(nut)}</p>
       ${outSeason.length ? `<p class="small warn">Fuori stagione: ${esc(outSeason.join(', '))}</p>` : ''}
       ${alt}
@@ -435,7 +436,7 @@ function mealBlock(s, nut) {
 
 function extraBlock(m) {
   const { plan, ctx } = state;
-  const bf = m.key === 'colazione' ? breakfastStyle(plan, ctx, m.day) : null;
+  const bf = m.key === 'colazione' ? m.style || breakfastStyle(plan, ctx, m.day) : null;
   const work = m.key !== 'colazione' && m.day < 5;
   const r = { n: m.name, s: extraHowTo(m.ing), pantry: [], notes: [], t: 5 };
   const args = `data-key="${m.key}" data-day="${m.day}"`;
