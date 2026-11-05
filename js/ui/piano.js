@@ -2,6 +2,7 @@
 import { parsePlanText, pdfToText, analyzePlan, emptyPlan, describeOption, MEAL_KEYS, MEAL_ORDER, FREQ_LABELS } from '../engine/plan.js';
 import { DAYS } from '../engine/common.js';
 import { $, esc, r0, macroLine } from './util.js';
+import { hasKey, readPlanWithClaude, explainError } from '../ai/claude.js';
 
 // pdf.js (Mozilla, licenza Apache 2.0) incluso nel progetto: funziona offline e il file non lascia il dispositivo
 const PDFJS = new URL('../vendor/pdfjs/pdf.min.js', import.meta.url).href;
@@ -51,7 +52,37 @@ function importText(app, text, source) {
   app.rerender();
 }
 
+/** Usa Claude per leggere il piano? (scelta dell'utente, attiva di default se c'è la chiave) */
+const useClaude = (app) => hasKey() && app.state.settings.planWithClaude !== false;
+
+async function importWithClaude(app, input, source) {
+  app.state.planImport = { busy: `Claude sta leggendo “${source}”… (può richiedere fino a un minuto)` };
+  app.rerender();
+  try {
+    const { plan, notes } = await readPlanWithClaude(input);
+    if (!plan.meals.length) throw new Error('Claude non ha trovato pasti in questo documento.');
+    plan.importedAt = new Date().toISOString();
+    if (!plan.freq) plan.freq = { ...DEFAULT_FREQ };
+    app.state.dietPlan = plan;
+    app.state.planImport = {
+      ok: `Claude ha letto ${plan.meals.length} pasti da “${source}”. Controlla qui sotto che sia tutto corretto, poi genera il menù.${notes.length ? ` Note di Claude: ${notes.join(' · ')}` : ''}`,
+    };
+    app.save();
+  } catch (e) {
+    app.state.planImport = { error: `${explainError(e)}` };
+  }
+  app.rerender();
+}
+
 export async function handlePlanFile(app, file) {
+  const isImage = /^image\//.test(file.type) || /\.(jpe?g|png|webp|gif)$/i.test(file.name);
+  if (useClaude(app) || isImage) {
+    if (!hasKey()) {
+      app.state.planImport = { error: 'Per leggere una foto o una scansione serve Claude: collegalo con il pulsante “💬 Chiedi a Claude”, oppure carica il PDF originale o il testo.' };
+      return app.rerender();
+    }
+    return importWithClaude(app, { file }, file.name);
+  }
   app.state.planImport = { busy: `Leggo “${file.name}”…` };
   app.rerender();
   try {
@@ -59,7 +90,7 @@ export async function handlePlanFile(app, file) {
     if (/\.pdf$/i.test(file.name) || file.type === 'application/pdf') {
       const lib = await loadPdfJs();
       text = await pdfToText(lib, new Uint8Array(await file.arrayBuffer()));
-      if (text.replace(/\s/g, '').length < 40) throw new Error('Il PDF non contiene testo leggibile (forse è una scansione). Incolla il testo o compila il piano a mano.');
+      if (text.replace(/\s/g, '').length < 40) throw new Error(`Il PDF non contiene testo leggibile (forse è una scansione). ${hasKey() ? 'Attiva “Leggi con Claude” e riprova.' : 'Collega Claude per leggerlo, incolla il testo o compila il piano a mano.'}`);
     } else {
       text = await file.text();
     }
@@ -74,6 +105,7 @@ export const planActions = (app) => ({
   'plan-parse-text': () => {
     const t = $('#plan-paste')?.value || '';
     if (!t.trim()) return app.toast('Incolla prima il testo del piano');
+    if (useClaude(app)) return importWithClaude(app, { text: t }, 'testo incollato');
     importText(app, t, 'testo incollato');
   },
   'plan-manual': () => {
@@ -114,6 +146,12 @@ export const planActions = (app) => ({
 
 /** Cambiamenti nei campi del piano (input/select con data-pf, data-meal+data-line, data-freq). */
 export function handlePlanChange(app, el) {
+  if (el.dataset.pf === 'planWithClaude') {
+    app.state.settings.planWithClaude = el.checked;
+    app.save();
+    app.rerender();
+    return true;
+  }
   const plan = app.state.dietPlan;
   if (!plan) return false;
   if (el.dataset.line != null && el.dataset.meal != null) {
@@ -144,10 +182,13 @@ function importPanel(app, compact) {
   return `
     <section class="panel">
       <h3>${compact ? '🔄 Carica un altro piano' : '📄 Allega il tuo piano alimentare'}</h3>
-      ${compact ? '' : `<p>Carica il PDF (o un file di testo) del piano che ti ha dato il nutrizionista: leggo pasti, alternative e grammature e li uso per costruire ricette, porzioni, calorie e lista della spesa.</p>
-      <p class="small muted">🔒 Il file viene letto solo sul tuo dispositivo: non viene inviato da nessuna parte.</p>`}
+      ${compact ? '' : `<p>Carica il PDF (o un file di testo) del piano che ti ha dato il nutrizionista: leggo pasti, alternative e grammature e li uso per costruire ricette, porzioni, calorie e lista della spesa.</p>`}
+      ${hasKey()
+        ? `<label class="check ai-toggle"><input type="checkbox" data-pf="planWithClaude" ${useClaude(app) ? 'checked' : ''}> ✨ Leggi il piano con Claude: funziona con qualsiasi formato, anche foto e scansioni, e legge le tabelle in immagine (come le frequenze settimanali)</label>
+           <p class="small muted">${useClaude(app) ? '🔒 Il file viene inviato ad Anthropic per essere letto. Senza questa opzione viene letto solo sul tuo dispositivo.' : '🔒 Il file viene letto solo sul tuo dispositivo: non viene inviato da nessuna parte.'}</p>`
+        : `<p class="small muted">🔒 Il file viene letto solo sul tuo dispositivo: non viene inviato da nessuna parte. Hai una scansione o una foto del piano? Collega Claude con “💬 Chiedi a Claude” per leggerla.</p>`}
       <div class="upload-row">
-        <label class="btn primary file-btn">📎 Scegli PDF o TXT<input type="file" id="plan-file" accept=".pdf,.txt,application/pdf,text/plain" hidden></label>
+        <label class="btn primary file-btn">📎 Scegli PDF${hasKey() ? ', foto' : ''} o TXT<input type="file" id="plan-file" accept=".pdf,.txt,application/pdf,text/plain${hasKey() ? ',image/jpeg,image/png,image/webp' : ''}" hidden></label>
         ${compact ? '' : '<button class="btn" data-action="plan-manual">✍️ Compila a mano</button>'}
       </div>
       <details class="paste" ${compact ? '' : ''}>

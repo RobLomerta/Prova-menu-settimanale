@@ -25,6 +25,8 @@ Web app che, dato un regime alimentare, costruisce il **menù della settimana** 
 
 | **☕ Colazione dolce o salata** | Nelle preferenze scegli colazione *dolce*, *salata* o *alternata*; nel menù puoi cambiare lo stile del singolo giorno con un tocco (🍯/🧀). Con il piano, la salata usa pane o gallette con uova, albumi o affettati magri (frutta a parte), la dolce avena, fette biscottate, yogurt, frutta e marmellata. Gli affettati della colazione non contano nella frequenza settimanale, che riguarda solo pranzi e cene. |
 
+| **💬 Claude (facoltativo)** | Con la **tua chiave API Anthropic** (inserita nel pannello "Chiedi a Claude", salvata solo nel tuo browser) puoi: fare domande su ricette, sostituzioni e organizzazione della settimana, con Claude che conosce piano, preferenze e menù; far leggere a Claude piani alimentari in **qualsiasi formato**, anche foto e scansioni, comprese le tabelle in immagine (es. le frequenze). Le richieste vanno direttamente dal browser ad Anthropic (modello `claude-opus-5-5`), senza server intermedi; si paga a consumo sul proprio account. Senza chiave l'app funziona come prima e il piano viene letto solo sul dispositivo. |
+
 I valori nutrizionali sono medie da tabelle CREA e USDA (`js/data/nutrition.js`) e sono indicativi.
 
 Altre funzioni: regimi **mediterranea, flexitariana, pescetariana, vegetariana, vegana**; **senza glutine / senza lattosio** (con sostituzioni automatiche, es. farro → grano saraceno); esclusione di uova, frutta a guscio, funghi, maiale, crostacei; porzioni leggere/normali/abbondanti; 🔄 cambia un singolo piatto, 🔒 bloccalo quando rigeneri, ♻️ trasforma un pranzo nell'avanzo della cena; lista con spunte, copia/condividi e stampa. Tutto viene salvato nel browser e funziona offline (PWA, installabile sul telefono).
@@ -63,6 +65,9 @@ js/engine/nutrition.js         calcoli nutrizionali ed equivalenze
 js/engine/week.js              vista della settimana con tutti i pasti e i totali
 js/ui/                         tab Piano, Laboratorio, Nutrienti
 js/vendor/pdfjs/               pdf.js (Mozilla, Apache 2.0) per leggere i PDF offline
+js/vendor/anthropic/           SDK ufficiale Anthropic per JavaScript (MIT), in un unico file per il browser
+js/ai/claude.js                chiamate a Claude: verifica chiave, lettura del piano, chat in streaming
+js/ui/assistant.js             pannello "Chiedi a Claude"
 js/engine/diet.js              regimi, intolleranze, adattamento delle ricette
 js/engine/planner.js           generazione del menù (ottimizzazione simulated annealing)
 js/engine/shopping.js          lista della spesa

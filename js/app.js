@@ -9,6 +9,8 @@ import { $, esc, r0, macroLine, installTooltip } from './ui/util.js';
 import { renderPiano, planActions, handlePlanChange, handlePlanFile } from './ui/piano.js';
 import { renderLab, labActions, handleLabInput, handleLabChange } from './ui/lab.js';
 import { renderStats } from './ui/stats.js';
+import { installAssistant, assistantActions, renderAssistant } from './ui/assistant.js';
+import { hasKey } from './ai/claude.js';
 
 const STORE_KEY = 'menu-settimanale-v2';
 const OLD_KEY = 'menu-settimanale-v1';
@@ -241,7 +243,9 @@ const actions = {
     render();
     toast('Nuove colazioni e spuntini');
   },
+  'ai-settings': () => actions['ai-open'](),
   ...planActions(app),
+  ...assistantActions(app),
   ...labActions(app),
 };
 
@@ -264,6 +268,12 @@ function renderSettings() {
            <button type="button" class="btn small" data-action="go-piano">Rivedi il piano</button>`
         : `<p class="small muted">Allega il piano del nutrizionista: porzioni e calorie del menù seguiranno le sue grammature.</p>
            <button type="button" class="btn small" data-action="go-piano">📎 Allega piano alimentare</button>`}
+    </div>
+    <div class="field plan-box">
+      <span>🤖 Claude (facoltativo)</span>
+      ${hasKey()
+        ? '<p class="small">✅ Collegato con la tua chiave API: puoi fare domande con “💬 Chiedi a Claude” e leggere qualsiasi piano alimentare, anche foto e scansioni.</p><button type="button" class="btn small" data-action="ai-settings">💬 Apri Claude</button>'
+        : '<p class="small muted">Collega Claude con la tua chiave API per fare domande su ricette e sostituzioni e per leggere piani in qualsiasi formato.</p><button type="button" class="btn small" data-action="ai-settings">🔑 Collega Claude</button>'}
     </div>
     <label class="field">
       <span>Regime alimentare</span>
@@ -637,6 +647,7 @@ function init() {
     }
   } catch { /* ignora */ }
   installTooltip();
+  installAssistant(app);
 
   // I pulsanti d'azione ricevono il focus senza far scorrere la pagina
   // (evita che il click "scivoli" su un altro elemento mentre la pagina si sposta).
