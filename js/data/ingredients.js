@@ -28,13 +28,14 @@ export const CATEGORIES = {
   conserve: 'Conserve',
   semi: 'Frutta secca e semi',
   surgelati: 'Surgelati',
+  dolci: 'Caffè, cioccolato e dolci',
   dispensa: 'Dispensa (controlla di averli)',
 };
 
 // Ordine dei reparti nella lista della spesa (percorso tipico al supermercato)
 export const CATEGORY_ORDER = [
   'verdura', 'forno', 'pesce', 'carne', 'latte', 'vegetali',
-  'secco', 'conserve', 'semi', 'surgelati', 'dispensa',
+  'secco', 'conserve', 'semi', 'dolci', 'surgelati', 'dispensa',
 ];
 
 const V = (n, o) => ({ n, c: 'verdura', u: 'g', pk: 0, f: true, ...o });
@@ -68,6 +69,7 @@ export const INGREDIENTS = {
   arance: V('Arance', { sh: 14, se: '11-4' }),
   prezzemolo: V('Prezzemolo (1 mazzetto)', { pk: 30, sh: 5 }),
   basilico: V('Basilico (1 mazzetto)', { pk: 20, sh: 5, se: '5-9' }),
+  menta: V('Menta fresca (1 mazzetto)', { pk: 20, sh: 5 }),
   zenzero: V('Zenzero fresco', { sh: 21 }),
   patate_dolci: V('Patate americane (dolci)', { sh: 21, se: '9-3' }),
   asparagi: V('Asparagi (1 mazzo)', { pk: 500, sh: 3, se: '3-6' }),
@@ -171,6 +173,10 @@ export const INGREDIENTS = {
   semi_zucca: { n: 'Semi di zucca', c: 'semi', u: 'g', pk: 150, sh: 90 },
   sesamo: { n: 'Semi di sesamo', c: 'semi', u: 'g', pk: 150, sh: 180 },
   tahina: { n: 'Tahina (crema di sesamo)', c: 'semi', u: 'g', pk: 300, sh: 120, op: 60 },
+
+  // --- Caffè, cioccolato e dolci ----------------------------------------
+  caffe: { n: 'Caffè', c: 'dolci', u: 'ml', pk: 0, sh: 365 },
+  cioccolato: { n: 'Cioccolato fondente (70% o più)', c: 'dolci', u: 'g', pk: 100, sh: 180, op: 60 },
 
   // --- Surgelati -----------------------------------------------------------
   piselli: { n: 'Piselli surgelati', c: 'surgelati', u: 'g', pk: 450, sh: 180 },

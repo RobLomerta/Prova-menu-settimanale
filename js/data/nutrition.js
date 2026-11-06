@@ -15,7 +15,7 @@ export const NUTRITION = {
   patate_dolci: [86, 1.6, 20, 0.1], sedano: [16, 0.7, 3, 0.2], funghi: [22, 3.1, 3.3, 0.3],
   limone: [29, 1.1, 9.3, 0.3], prezzemolo: [36, 3, 6, 0.8], basilico: [23, 3.2, 2.7, 0.6],
   zenzero: [80, 1.8, 18, 0.8], asparagi: [20, 2.2, 3.9, 0.1], carciofi: [22, 2.7, 2.5, 0.2],
-  bietole: [17, 1.3, 2.8, 0.1],
+  bietole: [17, 1.3, 2.8, 0.1], menta: [44, 3.3, 8, 0.7],
   // frutta
   arance: [34, 0.7, 7.8, 0.2], banana: [89, 1.1, 23, 0.3], mela: [52, 0.3, 14, 0.2],
   pera: [57, 0.4, 15, 0.1], kiwi: [61, 1.1, 15, 0.5], uva: [69, 0.7, 18, 0.2],
@@ -54,6 +54,7 @@ export const NUTRITION = {
   noci: [654, 14.3, 5.1, 68], semi_zucca: [559, 30, 10, 49], sesamo: [573, 18, 14, 50],
   tahina: [595, 17, 21, 54], olio: [899, 0, 0, 99.9], miele: [304, 0.3, 82, 0],
   sciroppo_acero: [260, 0, 67, 0], barretta: [380, 30, 35, 12],
+  caffe: [2, 0.1, 0, 0.2], cioccolato: [598, 7.8, 46, 43],
 };
 
 // Peso medio di un pezzo, per gli ingredienti contati a pezzi

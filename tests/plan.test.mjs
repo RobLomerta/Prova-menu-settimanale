@@ -242,3 +242,38 @@ test('numero di persone: spesa e meal prep moltiplicati, valori nutrizionali a p
   assert.equal(grains(three), 3 * grains(one));
   assert.match(mealPrepPlan(plan, three).gear, /15 contenitori/);
 });
+
+test('anti bruciore: caffè, cioccolato e menta esclusi anche dal piano alimentare', () => {
+  const custom = `Colazione
+- 50 g avena / 100 g pane integrale
+- 150 g yogurt greco
+- 20 g cioccolato fondente / 100 g mele
+Snack
+- 1 caffè 30 ml / 150 g pere
+Pranzo
+- 70 g riso
+- 100 g pollo
+- 10 g olio
+Cena
+- 100 g merluzzo
+- 80 g pane integrale
+- 10 g olio`;
+  const dp = parsePlanText(custom);
+  const line = parseLine('20 g cioccolato fondente / 1 caffè / foglie di menta');
+  assert.deepEqual(line.options.map((o) => o.foods[0]), ['cioccolato', 'caffe', 'menta']);
+  const BAD = ['caffe', 'cioccolato', 'menta'];
+  for (let seed = 1; seed <= 4; seed++) {
+    const ctx = buildContext({ month: 11, menuType: 'reflusso' }, dp);
+    const plan = generatePlan(ctx, { seed, iterations: 600, restarts: 1 });
+    for (const e of extraEntries(plan, ctx)) assert.ok(!e.ing.some((x) => BAD.includes(x.id)), e.name);
+  }
+  // nel menù normale restano ammessi
+  const normal = buildContext({ month: 11 }, dp);
+  const seen = new Set();
+  for (let seed = 1; seed <= 6; seed++) for (const e of extraEntries(generatePlan(normal, { seed, iterations: 300, restarts: 1 }), normal)) e.ing.forEach((x) => seen.add(x.id));
+  assert.ok(seen.has('cioccolato') || seen.has('caffe'), 'ammessi nel menù normale');
+  // una ricetta personale con il cioccolato non viene proposta nel menù anti bruciore
+  const mine = [{ id: 'u_c', user: true, n: 'Crema di ricotta e cacao', p: 'formaggi', m: 'C', i: { ricotta: 100, cioccolato: 20, pane: 50 }, d: [] }];
+  assert.ok(buildContext({ month: 11 }, null, mine).recipes.u_c);
+  assert.ok(!buildContext({ month: 11, menuType: 'reflusso' }, null, mine).recipes.u_c);
+});

@@ -1,5 +1,5 @@
 // Service worker: rende l'app utilizzabile offline (strategia network-first).
-const CACHE = 'menu-settimanale-v5';
+const CACHE = 'menu-settimanale-v6';
 const FILES = [
   './', 'index.html', 'css/style.css', 'manifest.webmanifest', 'icons/icon.svg',
   'js/app.js', 'js/data/ingredients.js', 'js/data/recipes.js', 'js/data/prep.js', 'js/data/nutrition.js', 'js/data/aliases.js',

@@ -34,7 +34,7 @@ export function buildContext(app) {
   lines.push(`Preferenze: regime ${REGIMES[settings.regime]?.label}; ${settings.gluten ? 'senza glutine; ' : ''}${settings.lactose ? 'senza lattosio; ' : ''}${ex ? `esclusi: ${ex}; ` : ''}colazione ${settings.breakfastStyle || 'dolce'}; spesa ${settings.twoShops ? 'nel weekend e il mercoledì' : 'una volta nel weekend'}.`);
   if ((settings.people || 1) > 1) lines.push(`Il menù è per ${settings.people} persone: le quantità indicate sono a persona, la spesa è per tutti.`);
   if (settings.menuType === 'reflusso') {
-    lines.push(`Menù anti bruciore di stomaco (reflusso): evita pomodoro, agrumi, cipolla, aglio, piccante, fritti, cioccolato, menta, caffè e alcol; preferisci cotture leggere e cene poco grasse. ${REFLUX_TIPS[0]}`);
+    lines.push(`Menù anti bruciore di stomaco (reflusso): evita pomodoro, agrumi, cipolla, aglio, piccante, fritti, caffè, cioccolato, menta e alcol; preferisci cotture leggere e cene poco grasse. ${REFLUX_TIPS[0]}`);
   }
   const t = ctx?.nutritionTarget;
   if (t) lines.push(`Obiettivo giornaliero: ${r0(t.kcal)} kcal${t.p ? `, proteine ${r0(t.p)} g, carboidrati ${r0(t.c)} g, grassi ${r0(t.f)} g` : ''}.`);

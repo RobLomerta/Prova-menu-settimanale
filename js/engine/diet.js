@@ -73,16 +73,21 @@ const REFLUX = {
   cipolla: DROP, aglio: DROP,
   peperoncino: DROP, paprika: DROP, curry: 'curcuma',
   macinato: 'tacchino', feta: 'ricotta', peperoni: 'zucchine',
+  caffe: null, cioccolato: null, menta: DROP,
 };
+
+/** L'ingrediente è da evitare nel menù anti bruciore (escluso, tolto o sostituito)? */
+export const isRefluxTrigger = (id) => id in REFLUX;
 const REFLUX_KW = {
   pelati: 'pomodor', pomodori: 'pomodor', pomodorini: 'pomodor', arance: 'aranc', mandarini: 'mandarin',
   limone: 'limon', cipolla: 'cipoll', aglio: 'agli', peperoncino: 'peperoncin', paprika: 'paprik', curry: 'curry',
   macinato: 'manzo', feta: 'feta', peperoni: 'peperon',
+  caffe: 'caff', cioccolato: 'cioccolat', menta: 'menta',
 };
 export const REFLUX_TIPS = [
   'Pasti piccoli e regolari; cena leggera, almeno 2-3 ore prima di coricarti.',
-  'Evita fritti, sughi di pomodoro, agrumi, cipolla e aglio, piccante, cioccolato e menta.',
-  'Limita caffè, tè forte, alcol e bevande gassate; preferisci acqua naturale e tisane non alla menta.',
+  'Evita fritti, sughi di pomodoro, agrumi, cipolla e aglio, piccante, caffè, cioccolato e menta.',
+  'Limita tè forte, alcol e bevande gassate; preferisci acqua naturale e tisane non alla menta (camomilla, finocchio).',
   'Preferisci cotture al vapore, al forno e al cartoccio; mastica con calma.',
   'Se i sintomi sono frequenti o forti, parlane con il medico o il nutrizionista.',
 ];

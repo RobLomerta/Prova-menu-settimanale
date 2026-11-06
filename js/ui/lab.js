@@ -3,7 +3,7 @@
 import { INGREDIENTS } from '../data/ingredients.js';
 import { nutrientsOf, nutrientsOfItem, energySplit, equivalent } from '../engine/nutrition.js';
 import { slotIngredients, shownId, fitPlan, extraEntries, setExtraDay, dayHasEdits, slotName, assignAlternatives, candidatesFor, replaceSlot } from '../engine/planner.js';
-import { PROTEINS } from '../engine/diet.js';
+import { PROTEINS, isRefluxTrigger } from '../engine/diet.js';
 import { askConfirm } from './dialog.js';
 import { weekView, countedNutrients } from '../engine/week.js';
 import { slotMeal, DAYS, DAYS_SHORT } from '../engine/common.js';
@@ -394,7 +394,7 @@ export function renderLab(app) {
                 <input type="range" min="0" max="${rg.max}" step="${rg.step}" value="${x.q}" data-lab-range="${i}" aria-label="Quantità di ${esc(shortName(x.id))}">
                 <span class="input-unit"><input type="number" min="0" step="${u === 'pz' ? 0.5 : 1}" value="${x.q}" data-lab-q="${i}"><em>${u}</em></span>
               </div>
-              <div class="lab-row-n small" data-lab-n="${i}">${rowCells(x)}</div>
+              <div class="lab-row-n small" data-lab-n="${i}">${rowCells(x)}${ctx.excluded.has('reflux') && isRefluxTrigger(x.id) ? '<br><span class="warn">⚠️ da evitare nel menù anti bruciore</span>' : ''}</div>
               <button class="icon-btn" data-action="lab-del" data-row="${i}" title="Togli ingrediente">✖</button>
             </div>`;
           }).join('')}
@@ -413,7 +413,7 @@ export function renderLab(app) {
 function live(app, i) {
   const lab = app.state.lab;
   const cell = document.querySelector(`[data-lab-n="${i}"]`);
-  if (cell) cell.innerHTML = rowCells(lab.draft[i]);
+  if (cell) cell.innerHTML = rowCells(lab.draft[i]) + (app.state.ctx.excluded.has('reflux') && isRefluxTrigger(lab.draft[i].id) ? '<br><span class="warn">⚠️ da evitare nel menù anti bruciore</span>' : '');
   $('#lab-summary').innerHTML = summaryHtml(app);
 }
 
